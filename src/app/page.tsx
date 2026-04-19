@@ -3,15 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import CreateLandingHero from "@/components/create-landing-hero";
 import PokemonCardComponent from "@/components/pokemon-card";
+import SiteHeader, { type AppTab } from "@/components/site-header";
 import Spinner from "@/components/spinner";
 import { PokemonCard, RepoStats } from "@/types/card";
 import { DeckSummary, BattleOutcome, LeaderboardEntry, BattleRoundLog } from "@/types/game";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
-/* ── Tabs ─────────────────────────────────────────── */
+/* ── Flow ─────────────────────────────────────────── */
 
-type AppTab = "create" | "decks" | "battle" | "leaderboard";
 type StepState = "input" | "select" | "cards";
 
 /* ── Tiny components ──────────────────────────────── */
@@ -28,66 +28,6 @@ function StepIndicator({ step }: { step: StepState }) {
       </span>
       <span className="hidden h-px w-12 shrink-0 bg-white/20 sm:block" aria-hidden />
       <span className={`text-center sm:text-left ${step === "cards" ? "text-amber-200" : "text-white/30"}`}>3. Battle Deck</span>
-    </div>
-  );
-}
-
-function TabBar({
-  tab,
-  setTab,
-  isLoggedIn,
-  variant = "default",
-}: {
-  tab: AppTab;
-  setTab: (t: AppTab) => void;
-  isLoggedIn: boolean;
-  variant?: "default" | "embedded";
-}) {
-  const tabs: { id: AppTab; label: string; authRequired: boolean }[] = [
-    { id: "create", label: "Create Deck", authRequired: true },
-    { id: "decks", label: "My Decks", authRequired: true },
-    { id: "battle", label: "Battle", authRequired: true },
-    { id: "leaderboard", label: "Leaderboard", authRequired: false },
-  ];
-  const embedded = variant === "embedded";
-  return (
-    <div className={`relative z-10 w-full max-w-full ${embedded ? "" : "mb-6 sm:mb-8"}`}>
-      <div
-        className={
-          embedded
-            ? "overflow-x-auto overscroll-x-contain rounded-lg bg-black/35 p-0.5 backdrop-blur-sm"
-            : "-mx-1 overflow-x-auto overscroll-x-contain rounded-xl border border-white/10 bg-black/40 p-1 backdrop-blur-sm sm:mx-0 sm:overflow-visible"
-        }
-      >
-        <div
-          className={`flex w-max min-w-full justify-start gap-0.5 sm:gap-1 ${embedded ? "sm:justify-start" : "sm:mx-auto sm:w-full sm:justify-center"}`}
-        >
-          {tabs.map((t) => {
-            const disabled = t.authRequired && !isLoggedIn;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => !disabled && setTab(t.id)}
-                disabled={disabled}
-                className={`shrink-0 rounded-md font-black uppercase tracking-[0.1em] transition-all ${
-                  embedded
-                    ? `min-h-9 px-2.5 py-2 text-[9px] sm:min-h-0 sm:px-3 sm:text-[10px] sm:tracking-[0.12em]`
-                    : `min-h-11 rounded-lg px-3 py-2.5 text-[10px] tracking-[0.12em] sm:min-h-0 sm:px-4 sm:text-xs sm:tracking-[0.14em]`
-                } ${
-                  tab === t.id
-                    ? "border border-amber-200/40 bg-amber-200/20 text-amber-200"
-                    : disabled
-                      ? "cursor-not-allowed text-white/20"
-                      : "cursor-pointer text-white/60 hover:bg-white/5 hover:text-white/80 active:bg-white/10"
-                }`}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
@@ -194,9 +134,9 @@ export default function Home() {
     if (!user || tab !== "decks") return;
 
     const ctrl = new AbortController();
-    setDecksLoading(true);
 
-    (async () => {
+    const loadDecks = async () => {
+      setDecksLoading(true);
       try {
         const res = await fetch("/api/decks", { signal: ctrl.signal });
         const data = await res.json();
@@ -206,7 +146,9 @@ export default function Home() {
       } finally {
         if (!ctrl.signal.aborted) setDecksLoading(false);
       }
-    })();
+    };
+
+    loadDecks();
 
     return () => ctrl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -382,15 +324,10 @@ export default function Home() {
     );
   }
 
-  const isCreateLanding = tab === "create" && step === "input";
-
   return (
     <main
-      className={`relative flex min-h-screen min-h-[100dvh] flex-col items-center overflow-x-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-black px-3 pb-10 sm:px-4 sm:pb-10 md:pb-12 ${
-        isCreateLanding
-          ? "py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:py-5 sm:pt-[max(1rem,env(safe-area-inset-top))]"
-          : "py-6 pt-[max(1.5rem,env(safe-area-inset-top))] sm:py-10 md:py-12"
-      }`}
+      id="main-content"
+      className="relative flex min-h-screen min-h-[100dvh] flex-col items-center overflow-x-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-black px-3 py-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-10 sm:px-4 sm:py-6 sm:pt-[max(1rem,env(safe-area-inset-top))] md:py-8 md:pb-12"
     >
       {/* BG effects */}
       <div
@@ -402,83 +339,7 @@ export default function Home() {
       />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-black/70 to-black" />
 
-      {isCreateLanding ? (
-        <header className="relative z-10 mb-4 w-full max-w-5xl">
-          <div className="rounded-2xl border border-white/10 bg-black/50 px-3 py-2.5 shadow-lg shadow-black/30 backdrop-blur-md sm:px-4 sm:py-3">
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-              <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 sm:justify-start">
-                <span className="rounded-full border border-yellow-300/35 bg-yellow-200/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.18em] text-yellow-200/90 sm:text-[9px] sm:tracking-[0.22em]">
-                  Arena
-                </span>
-                <h1 className="bg-gradient-to-r from-yellow-200 via-rose-300 to-amber-400 bg-clip-text text-lg font-black tracking-tight text-transparent sm:text-xl">
-                  GitDex
-                </h1>
-              </div>
-              {user ? (
-                <div className="flex items-center justify-center gap-2 sm:justify-end">
-                  <span className="max-w-[14rem] truncate text-center text-[11px] text-slate-400 sm:text-left sm:text-xs">
-                    <span className="font-semibold text-amber-200/95">
-                      @{user.user_metadata?.user_name || user.email}
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={signOut}
-                    className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-300 transition-colors hover:border-white/30 hover:text-white cursor-pointer sm:text-[11px] sm:normal-case sm:tracking-normal"
-                  >
-                    Sign out
-                  </button>
-                </div>
-              ) : null}
-            </div>
-            <nav className="mt-2.5 border-t border-white/10 pt-2.5" aria-label="Main">
-              <TabBar tab={tab} setTab={setTab} isLoggedIn={!!user} variant="embedded" />
-            </nav>
-          </div>
-        </header>
-      ) : (
-        <>
-          <div className="relative z-10 mb-4 w-full max-w-2xl px-1 text-center sm:mb-5 sm:px-0">
-            <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full border border-yellow-300/40 bg-yellow-200/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-yellow-200/90 sm:mb-3 sm:px-3 sm:text-[11px] sm:tracking-[0.35em]">
-              Battle Arena Edition
-            </span>
-            <h1 className="mb-1.5 bg-gradient-to-r from-yellow-200 via-red-300 to-amber-400 bg-clip-text text-3xl font-black text-transparent sm:mb-2 sm:text-5xl">
-              GitDex
-            </h1>
-            <p className="text-balance px-1 text-sm leading-snug text-slate-300 sm:text-lg">
-              Turn your top GitHub repos into Pokemon cards
-            </p>
-          </div>
-
-          <div className="relative z-10 mb-3 flex w-full max-w-md flex-col items-stretch gap-2 sm:max-w-none sm:mb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-3">
-            {user ? (
-              <>
-                <span className="text-center text-xs text-slate-400 sm:text-left">
-                  Signed in as{" "}
-                  <span className="font-bold text-amber-200">{user.user_metadata?.user_name || user.email}</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={signOut}
-                  className="min-h-10 rounded-lg border border-white/20 px-3 py-2 text-xs text-white/60 transition-all hover:border-white/40 hover:text-white cursor-pointer sm:min-h-0 sm:py-1"
-                >
-                  Sign Out
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={signIn}
-                className="min-h-11 w-full rounded-xl border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-white/15 cursor-pointer sm:w-auto sm:min-h-0"
-              >
-                Sign in with GitHub
-              </button>
-            )}
-          </div>
-
-          <TabBar tab={tab} setTab={setTab} isLoggedIn={!!user} />
-        </>
-      )}
+      <SiteHeader tab={tab} onTabChange={setTab} user={user} onSignIn={signIn} onSignOut={signOut} />
 
       {/* Error */}
       {error && (
@@ -526,7 +387,7 @@ export default function Home() {
 
           {/* Repo picker */}
           {step === "select" && (
-            <div className="relative z-10 w-full max-w-4xl px-0">
+            <div className="relative z-10 w-full max-w-5xl px-0">
               <div className="mb-3 px-1 text-center text-xs uppercase tracking-[0.12em] text-slate-300 sm:text-sm sm:tracking-[0.14em]">
                 Choose up to 3 repositories for your battle deck
               </div>
@@ -581,7 +442,7 @@ export default function Home() {
 
           {/* Cards display */}
           {step === "cards" && cards.length > 0 && (
-            <div className="relative z-10 w-full max-w-[100vw] px-0">
+            <div className="relative z-10 w-full max-w-5xl px-0">
               <p className="mb-4 px-1 text-center text-xs uppercase tracking-[0.12em] text-slate-300 sm:mb-6 sm:text-sm sm:tracking-[0.14em]">
                 @{username}&apos;s battle deck
               </p>
@@ -613,7 +474,7 @@ export default function Home() {
 
       {/* ═══════════════ DECKS TAB ═══════════════ */}
       {tab === "decks" && user && (
-        <div className="relative z-10 w-full max-w-4xl px-0">
+        <div className="relative z-10 w-full max-w-5xl px-0">
           <h2 className="mb-4 text-center text-xl font-black text-white sm:mb-6 sm:text-2xl">My Decks</h2>
           {decksLoading ? (
             <div className="flex justify-center py-12 text-white"><Spinner text="Loading decks..." /></div>
@@ -676,7 +537,7 @@ export default function Home() {
 
       {/* ═══════════════ BATTLE TAB ═══════════════ */}
       {tab === "battle" && user && (
-        <div className="relative z-10 w-full max-w-4xl px-0">
+        <div className="relative z-10 w-full max-w-5xl px-0">
           <h2 className="mb-4 text-center text-xl font-black text-white sm:mb-6 sm:text-2xl">Battle Arena</h2>
 
           {battleError && (
@@ -712,7 +573,7 @@ export default function Home() {
 
       {/* ═══════════════ LEADERBOARD TAB ═══════════════ */}
       {tab === "leaderboard" && (
-        <div className="relative z-10 w-full max-w-4xl px-0">
+        <div className="relative z-10 w-full max-w-5xl px-0">
           {!user && (
             <div className="relative z-10 mb-8 w-full sm:mb-10">
               <CreateLandingHero
@@ -725,7 +586,7 @@ export default function Home() {
           )}
           <h2 className="mb-4 text-center text-xl font-black text-white sm:mb-6 sm:text-2xl">Leaderboard</h2>
 
-          <section className="mb-6 rounded-xl border border-white/10 bg-black/40 p-4 backdrop-blur-sm sm:mb-8 sm:p-5">
+          <section className="mb-6 sm:mb-8">
             <h3 className="mb-3 text-sm font-black uppercase tracking-[0.14em] text-amber-200 sm:text-xs">Recently Created Decks</h3>
 
             {recentDecksLoading ? (
@@ -733,16 +594,40 @@ export default function Home() {
             ) : recentDecks.length === 0 ? (
               <p className="py-4 text-center text-sm text-slate-400">No decks have been saved yet.</p>
             ) : (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {recentDecks.map((deck) => (
-                  <div key={deck.id} className="rounded-lg border border-white/10 bg-white/5 p-3">
-                    <p className="truncate text-sm font-bold text-white">{deck.name}</p>
-                    <p className="mt-1 text-xs text-slate-400">@{deck.githubUsername}</p>
-                    <p className="mt-2 text-[11px] text-slate-500">
-                      {deck.cards.length} cards &middot; {new Date(deck.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                ))}
+              <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm [-webkit-overflow-scrolling:touch]">
+                <table className="w-full min-w-[28rem] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 sm:text-[11px] sm:tracking-[0.14em]">
+                      <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Deck</th>
+                      <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Player</th>
+                      <th className="whitespace-nowrap px-2 py-2.5 text-center sm:px-4 sm:py-3">Cards</th>
+                      <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-4 sm:py-3">Created</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentDecks.map((deck) => (
+                      <tr key={deck.id} className="border-b border-white/5 transition-colors hover:bg-white/5">
+                        <td className="max-w-[10rem] truncate px-2 py-2.5 font-bold text-white sm:max-w-none sm:px-4 sm:py-3">
+                          {deck.name}
+                        </td>
+                        <td className="px-2 py-2.5 sm:px-4 sm:py-3">
+                          <a
+                            href={`https://github.com/${deck.githubUsername}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-slate-400 underline decoration-white/10 underline-offset-2 transition-colors hover:text-amber-200/90"
+                          >
+                            @{deck.githubUsername}
+                          </a>
+                        </td>
+                        <td className="px-2 py-2.5 text-center text-slate-300 sm:px-4 sm:py-3">{deck.cards.length}</td>
+                        <td className="whitespace-nowrap px-2 py-2.5 text-right text-slate-500 sm:px-4 sm:py-3">
+                          {new Date(deck.createdAt).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>
@@ -769,8 +654,15 @@ export default function Home() {
                   {leaderboard.map((entry, i) => (
                     <tr key={entry.userId} className="border-b border-white/5 transition-colors hover:bg-white/5">
                       <td className="px-2 py-2.5 font-black text-amber-200 sm:px-4 sm:py-3">{i + 1}</td>
-                      <td className="max-w-[9rem] truncate px-2 py-2.5 font-bold text-white sm:max-w-none sm:px-4 sm:py-3">
-                        {entry.githubUsername}
+                      <td className="max-w-[9rem] truncate px-2 py-2.5 font-bold sm:max-w-none sm:px-4 sm:py-3">
+                        <a
+                          href={`https://github.com/${entry.githubUsername}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-white underline decoration-white/15 underline-offset-2 transition-colors hover:text-amber-200"
+                        >
+                          {entry.githubUsername}
+                        </a>
                       </td>
                       <td className="px-2 py-2.5 text-center text-emerald-400 sm:px-4 sm:py-3">{entry.wins}</td>
                       <td className="px-2 py-2.5 text-center text-red-400 sm:px-4 sm:py-3">{entry.losses}</td>
