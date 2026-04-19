@@ -38,6 +38,7 @@ export default function RootLayout({
     >
       <body className="flex min-h-full min-h-[100dvh] flex-col pb-[env(safe-area-inset-bottom,0px)]">
         {children}
+        <Analytics />
         <footer className="mt-auto border-t border-white/10 bg-black/20 px-4 py-4 text-center text-[11px] text-slate-500 backdrop-blur-sm">
           <a
             href={SOURCE_REPO_URL}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import CreateLandingHero from "@/components/create-landing-hero";
 import PokemonCardComponent from "@/components/pokemon-card";
 import Spinner from "@/components/spinner";
@@ -32,17 +32,36 @@ function StepIndicator({ step }: { step: StepState }) {
   );
 }
 
-function TabBar({ tab, setTab, isLoggedIn }: { tab: AppTab; setTab: (t: AppTab) => void; isLoggedIn: boolean }) {
+function TabBar({
+  tab,
+  setTab,
+  isLoggedIn,
+  variant = "default",
+}: {
+  tab: AppTab;
+  setTab: (t: AppTab) => void;
+  isLoggedIn: boolean;
+  variant?: "default" | "embedded";
+}) {
   const tabs: { id: AppTab; label: string; authRequired: boolean }[] = [
     { id: "create", label: "Create Deck", authRequired: true },
     { id: "decks", label: "My Decks", authRequired: true },
     { id: "battle", label: "Battle", authRequired: true },
     { id: "leaderboard", label: "Leaderboard", authRequired: false },
   ];
+  const embedded = variant === "embedded";
   return (
-    <div className="relative z-10 mb-6 w-full max-w-full sm:mb-8">
-      <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-xl border border-white/10 bg-black/40 p-1 backdrop-blur-sm sm:mx-0 sm:overflow-visible">
-        <div className="flex w-max min-w-full justify-start gap-1 sm:mx-auto sm:w-full sm:justify-center">
+    <div className={`relative z-10 w-full max-w-full ${embedded ? "" : "mb-6 sm:mb-8"}`}>
+      <div
+        className={
+          embedded
+            ? "overflow-x-auto overscroll-x-contain rounded-lg bg-black/35 p-0.5 backdrop-blur-sm"
+            : "-mx-1 overflow-x-auto overscroll-x-contain rounded-xl border border-white/10 bg-black/40 p-1 backdrop-blur-sm sm:mx-0 sm:overflow-visible"
+        }
+      >
+        <div
+          className={`flex w-max min-w-full justify-start gap-0.5 sm:gap-1 ${embedded ? "sm:justify-start" : "sm:mx-auto sm:w-full sm:justify-center"}`}
+        >
           {tabs.map((t) => {
             const disabled = t.authRequired && !isLoggedIn;
             return (
@@ -51,12 +70,16 @@ function TabBar({ tab, setTab, isLoggedIn }: { tab: AppTab; setTab: (t: AppTab) 
                 type="button"
                 onClick={() => !disabled && setTab(t.id)}
                 disabled={disabled}
-                className={`min-h-11 shrink-0 rounded-lg px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] transition-all sm:min-h-0 sm:px-4 sm:text-xs sm:tracking-[0.14em] ${
+                className={`shrink-0 rounded-md font-black uppercase tracking-[0.1em] transition-all ${
+                  embedded
+                    ? `min-h-9 px-2.5 py-2 text-[9px] sm:min-h-0 sm:px-3 sm:text-[10px] sm:tracking-[0.12em]`
+                    : `min-h-11 rounded-lg px-3 py-2.5 text-[10px] tracking-[0.12em] sm:min-h-0 sm:px-4 sm:text-xs sm:tracking-[0.14em]`
+                } ${
                   tab === t.id
-                    ? "bg-amber-200/20 text-amber-200 border border-amber-200/40"
+                    ? "border border-amber-200/40 bg-amber-200/20 text-amber-200"
                     : disabled
-                      ? "text-white/20 cursor-not-allowed"
-                      : "text-white/60 hover:text-white/80 hover:bg-white/5 cursor-pointer active:bg-white/10"
+                      ? "cursor-not-allowed text-white/20"
+                      : "cursor-pointer text-white/60 hover:bg-white/5 hover:text-white/80 active:bg-white/10"
                 }`}
               >
                 {t.label}
@@ -166,27 +189,28 @@ export default function Home() {
     }
   }, []);
 
-  /* Fetch decks when switching to the decks tab.
-     The setState calls happen inside fetchMyDecks which is async (not synchronous). */
-  const prevDecksDeps = useRef({ user: user?.id, tab });
+  /* Fetch decks when switching to the decks tab or when user changes. */
   useEffect(() => {
-    const changed =
-      prevDecksDeps.current.user !== user?.id || prevDecksDeps.current.tab !== tab;
-    prevDecksDeps.current = { user: user?.id, tab };
-    if (changed && user && tab === "decks") {
-      const ctrl = new AbortController();
-      (async () => {
-        try {
-          const res = await fetch("/api/decks", { signal: ctrl.signal });
-          const data = await res.json();
-          if (res.ok && Array.isArray(data.decks)) setMyDecks(data.decks);
-        } catch { /* aborted or network */ }
-        finally { setDecksLoading(false); }
-      })();
-      setDecksLoading(true);
-      return () => ctrl.abort();
-    }
-  });
+    if (!user || tab !== "decks") return;
+
+    const ctrl = new AbortController();
+    setDecksLoading(true);
+
+    (async () => {
+      try {
+        const res = await fetch("/api/decks", { signal: ctrl.signal });
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.decks)) setMyDecks(data.decks);
+      } catch {
+        /* aborted or network */
+      } finally {
+        if (!ctrl.signal.aborted) setDecksLoading(false);
+      }
+    })();
+
+    return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, tab]);
 
   async function handleSaveDeck() {
     if (!user || cards.length === 0) return;
@@ -358,8 +382,16 @@ export default function Home() {
     );
   }
 
+  const isCreateLanding = tab === "create" && step === "input";
+
   return (
-    <main className="relative flex min-h-screen min-h-[100dvh] flex-col items-center overflow-x-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-black px-3 py-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-10 sm:px-4 sm:py-10 md:py-12">
+    <main
+      className={`relative flex min-h-screen min-h-[100dvh] flex-col items-center overflow-x-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-black px-3 pb-10 sm:px-4 sm:pb-10 md:pb-12 ${
+        isCreateLanding
+          ? "py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:py-5 sm:pt-[max(1rem,env(safe-area-inset-top))]"
+          : "py-6 pt-[max(1.5rem,env(safe-area-inset-top))] sm:py-10 md:py-12"
+      }`}
+    >
       {/* BG effects */}
       <div
         className="pointer-events-none absolute inset-0 opacity-35"
@@ -370,59 +402,83 @@ export default function Home() {
       />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-black/70 to-black" />
 
-      {/* Header — compact on create landing to avoid duplicate headlines */}
-      {tab === "create" && step === "input" ? (
-        <div className="relative z-10 mb-5 w-full max-w-2xl px-1 text-center sm:mb-6">
-          <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-yellow-300/40 bg-yellow-200/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-yellow-200/90 sm:px-3 sm:text-[11px] sm:tracking-[0.35em]">
-            Battle Arena Edition
-          </span>
-          <h1 className="mt-2 bg-gradient-to-r from-yellow-200 via-red-300 to-amber-400 bg-clip-text text-2xl font-black tracking-tight text-transparent sm:text-3xl">
-            GitDex
-          </h1>
-        </div>
+      {isCreateLanding ? (
+        <header className="relative z-10 mb-4 w-full max-w-5xl">
+          <div className="rounded-2xl border border-white/10 bg-black/50 px-3 py-2.5 shadow-lg shadow-black/30 backdrop-blur-md sm:px-4 sm:py-3">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+              <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 sm:justify-start">
+                <span className="rounded-full border border-yellow-300/35 bg-yellow-200/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.18em] text-yellow-200/90 sm:text-[9px] sm:tracking-[0.22em]">
+                  Arena
+                </span>
+                <h1 className="bg-gradient-to-r from-yellow-200 via-rose-300 to-amber-400 bg-clip-text text-lg font-black tracking-tight text-transparent sm:text-xl">
+                  GitDex
+                </h1>
+              </div>
+              {user ? (
+                <div className="flex items-center justify-center gap-2 sm:justify-end">
+                  <span className="max-w-[14rem] truncate text-center text-[11px] text-slate-400 sm:text-left sm:text-xs">
+                    <span className="font-semibold text-amber-200/95">
+                      @{user.user_metadata?.user_name || user.email}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={signOut}
+                    className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-300 transition-colors hover:border-white/30 hover:text-white cursor-pointer sm:text-[11px] sm:normal-case sm:tracking-normal"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            <nav className="mt-2.5 border-t border-white/10 pt-2.5" aria-label="Main">
+              <TabBar tab={tab} setTab={setTab} isLoggedIn={!!user} variant="embedded" />
+            </nav>
+          </div>
+        </header>
       ) : (
-        <div className="relative z-10 mb-4 w-full max-w-2xl px-1 text-center sm:mb-5 sm:px-0">
-          <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full border border-yellow-300/40 bg-yellow-200/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-yellow-200/90 sm:mb-3 sm:px-3 sm:text-[11px] sm:tracking-[0.35em]">
-            Battle Arena Edition
-          </span>
-          <h1 className="mb-1.5 bg-gradient-to-r from-yellow-200 via-red-300 to-amber-400 bg-clip-text text-3xl font-black text-transparent sm:mb-2 sm:text-5xl">
-            GitDex
-          </h1>
-          <p className="text-balance px-1 text-sm leading-snug text-slate-300 sm:text-lg">
-            Turn your top GitHub repos into Pokemon cards
-          </p>
-        </div>
-      )}
-
-      {/* Auth bar */}
-      <div className="relative z-10 mb-4 flex w-full max-w-md flex-col items-stretch gap-2 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-3">
-        {user ? (
-          <>
-            <span className="text-center text-xs text-slate-400 sm:text-left">
-              Signed in as{" "}
-              <span className="font-bold text-amber-200">{user.user_metadata?.user_name || user.email}</span>
+        <>
+          <div className="relative z-10 mb-4 w-full max-w-2xl px-1 text-center sm:mb-5 sm:px-0">
+            <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full border border-yellow-300/40 bg-yellow-200/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-yellow-200/90 sm:mb-3 sm:px-3 sm:text-[11px] sm:tracking-[0.35em]">
+              Battle Arena Edition
             </span>
-            <button
-              type="button"
-              onClick={signOut}
-              className="min-h-10 rounded-lg border border-white/20 px-3 py-2 text-xs text-white/60 transition-all hover:border-white/40 hover:text-white cursor-pointer sm:min-h-0 sm:py-1"
-            >
-              Sign Out
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={signIn}
-            className="min-h-11 w-full rounded-xl border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-white/15 cursor-pointer sm:w-auto sm:min-h-0"
-          >
-            Sign in with GitHub
-          </button>
-        )}
-      </div>
+            <h1 className="mb-1.5 bg-gradient-to-r from-yellow-200 via-red-300 to-amber-400 bg-clip-text text-3xl font-black text-transparent sm:mb-2 sm:text-5xl">
+              GitDex
+            </h1>
+            <p className="text-balance px-1 text-sm leading-snug text-slate-300 sm:text-lg">
+              Turn your top GitHub repos into Pokemon cards
+            </p>
+          </div>
 
-      {/* Tabs */}
-      <TabBar tab={tab} setTab={setTab} isLoggedIn={!!user} />
+          <div className="relative z-10 mb-3 flex w-full max-w-md flex-col items-stretch gap-2 sm:max-w-none sm:mb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-3">
+            {user ? (
+              <>
+                <span className="text-center text-xs text-slate-400 sm:text-left">
+                  Signed in as{" "}
+                  <span className="font-bold text-amber-200">{user.user_metadata?.user_name || user.email}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={signOut}
+                  className="min-h-10 rounded-lg border border-white/20 px-3 py-2 text-xs text-white/60 transition-all hover:border-white/40 hover:text-white cursor-pointer sm:min-h-0 sm:py-1"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={signIn}
+                className="min-h-11 w-full rounded-xl border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-white/15 cursor-pointer sm:w-auto sm:min-h-0"
+              >
+                Sign in with GitHub
+              </button>
+            )}
+          </div>
+
+          <TabBar tab={tab} setTab={setTab} isLoggedIn={!!user} />
+        </>
+      )}
 
       {/* Error */}
       {error && (
