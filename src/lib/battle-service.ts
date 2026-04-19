@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { runBattle } from "@/lib/battle/engine";
 import { getDeckById, pickRandomOpponentDeck } from "@/lib/deck-service";
+import { createServiceClient } from "@/lib/supabase/server";
 import {
   BattleSessionRow,
   BattleSessionRecord,
@@ -131,4 +132,34 @@ export async function getMyBattleHistory(
 
   if (error) throw new Error(`Failed to fetch battle history: ${error.message}`);
   return ((data ?? []) as BattleSessionRow[]).map(toRecord);
+}
+
+const BATTLE_SHARE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Load a persisted battle + both decks for public share pages.
+ * Uses the service role so deck rows resolve even when RLS would block anon reads.
+ */
+export async function getBattleOutcomeForShare(battleId: string): Promise<BattleOutcome | null> {
+  if (!BATTLE_SHARE_ID_RE.test(battleId)) return null;
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) return null;
+
+  const admin = createServiceClient();
+  const { data: row, error } = await admin
+    .from("gxd_battle_sessions")
+    .select("*")
+    .eq("id", battleId)
+    .maybeSingle();
+
+  if (error || !row) return null;
+
+  const attackerDeck = await getDeckById(admin, (row as BattleSessionRow).attacker_deck_id);
+  const defenderDeck = await getDeckById(admin, (row as BattleSessionRow).defender_deck_id);
+  if (!attackerDeck || !defenderDeck) return null;
+
+  return {
+    battle: toRecord(row as BattleSessionRow),
+    attackerDeck,
+    defenderDeck,
+  };
 }

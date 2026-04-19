@@ -11,6 +11,7 @@ import {
   playMatchIntro,
   type BattleHitSound,
 } from "@/lib/battle-sounds";
+import { BattleSharePanel } from "@/components/battle-share-panel";
 
 const TIMING_MS = {
   intro: 600,
@@ -163,6 +164,8 @@ export function BattleResultView({
   const displayHits = done ? currentLogsFull.length : replay.hits;
   const currentLogsVisible = currentLogsFull.slice(0, displayHits);
   const firstLog = currentLogsFull[0];
+  const clashKey = `${displayTurn}-${displayHits}`;
+  const showClashMotion = !reduceMotion && displayHits > 0;
 
   const faceoff = useMemo(() => {
     if (!firstLog) return null;
@@ -207,10 +210,12 @@ export function BattleResultView({
   }, [currentLogsFull, displayHits, defenderDeck.cards, isSelfBattle]);
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${reduceMotion ? "" : "animate-battle-view-in"}`}>
       {done ? (
         <div
           className={`rounded-xl border px-3 py-4 text-center sm:px-6 sm:py-5 ${
+            reduceMotion ? "" : "animate-battle-result-reveal"
+          } ${
             isWin
               ? "border-emerald-500/40 bg-emerald-500/15"
               : isDraw
@@ -249,7 +254,11 @@ export function BattleResultView({
           </p>
         </div>
       ) : (
-        <div className="rounded-xl border border-amber-200/30 bg-gradient-to-br from-amber-500/10 to-orange-600/5 px-4 py-4 text-center sm:px-6 sm:py-5">
+        <div
+          className={`rounded-xl border border-amber-200/30 bg-gradient-to-br from-amber-500/10 to-orange-600/5 px-4 py-4 text-center sm:px-6 sm:py-5 ${
+            reduceMotion ? "" : "animate-battle-hud-live"
+          }`}
+        >
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between sm:gap-4">
             <div className="text-left sm:min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-200/90">Live simulation</p>
@@ -280,7 +289,9 @@ export function BattleResultView({
           </div>
           <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-amber-300 to-orange-400 transition-[width] duration-500 ease-out"
+              className={`h-full rounded-full bg-gradient-to-r from-amber-300 to-orange-400 transition-[width] duration-700 ease-out ${
+                reduceMotion ? "" : "animate-battle-progress-glow"
+              }`}
               style={{
                 width: `${Math.min(100, ((displayTurn + (displayHits / Math.max(currentLogsFull.length, 1))) / Math.max(turnGroups.length, 1)) * 100)}%`,
               }}
@@ -290,8 +301,8 @@ export function BattleResultView({
       )}
 
       {turnGroups.length > 0 && faceoff ? (
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-4 sm:p-6">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="battle-faceoff-arena relative overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-4 sm:p-6">
+          <div className="relative z-10 mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Matchup</p>
               <p className="text-lg font-black text-white">
@@ -331,35 +342,47 @@ export function BattleResultView({
             </div>
           </div>
 
-          <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+          <div className="relative z-10 mb-2 h-1.5 overflow-hidden rounded-full bg-white/10">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-amber-300 to-orange-400 transition-all duration-300"
+              className="h-full rounded-full bg-gradient-to-r from-amber-300 to-orange-400 transition-all duration-500 ease-out"
               style={{ width: `${((displayTurn + 1) / turnGroups.length) * 100}%` }}
             />
           </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-3">
+          <div className="relative z-10 mt-6 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-3">
             <div
               className={`rounded-xl border p-4 text-center transition-[box-shadow] duration-300 ${
                 isSelfBattle ? "border-violet-400/30 bg-violet-500/10" : "border-amber-200/25 bg-amber-200/5"
               } ${!done && currentLogsVisible.length > 0 ? "ring-1 ring-amber-200/20" : ""}`}
             >
-              <p className="mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
-                {isSelfBattle ? "Side A (attacker)" : "Your card"}
-              </p>
-              <img
-                src={faceoff.leftCard.ownerAvatar}
-                alt=""
-                className="mx-auto h-16 w-16 rounded-full border-2 border-white/20 object-cover sm:h-20 sm:w-20"
-              />
-              <p className="mt-2 truncate text-base font-black text-white">{faceoff.leftCard.repoName}</p>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                {faceoff.leftCard.type} · HP {faceoff.leftCard.hp}
-              </p>
+              <div
+                key={`left-${clashKey}`}
+                className={showClashMotion ? "animate-battle-lunge-left" : undefined}
+              >
+                <p className="mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                  {isSelfBattle ? "Side A (attacker)" : "Your card"}
+                </p>
+                <img
+                  src={faceoff.leftCard.ownerAvatar}
+                  alt=""
+                  className="mx-auto h-16 w-16 rounded-full border-2 border-white/20 object-cover sm:h-20 sm:w-20"
+                />
+                <p className="mt-2 truncate text-base font-black text-white">{faceoff.leftCard.repoName}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  {faceoff.leftCard.type} · HP {faceoff.leftCard.hp}
+                </p>
+              </div>
             </div>
 
             <div className="flex justify-center py-2 sm:py-0">
-              <span className="rounded-full border border-white/15 bg-black/50 px-4 py-2 text-sm font-black text-white/90">VS</span>
+              <span
+                key={`vs-${clashKey}`}
+                className={`rounded-full border border-white/15 bg-black/50 px-4 py-2 text-sm font-black text-white/90 ${
+                  showClashMotion ? "animate-battle-vs-pop" : ""
+                }`}
+              >
+                VS
+              </span>
             </div>
 
             <div
@@ -367,30 +390,37 @@ export function BattleResultView({
                 isSelfBattle ? "border-sky-400/30 bg-sky-500/10" : "border-sky-300/25 bg-sky-500/5"
               } ${!done && currentLogsVisible.length > 0 ? "ring-1 ring-sky-200/20" : ""}`}
             >
-              <p className="mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
-                {isSelfBattle ? "Side B (defender)" : "Opponent"}
-              </p>
-              <img
-                src={faceoff.rightCard.ownerAvatar}
-                alt=""
-                className="mx-auto h-16 w-16 rounded-full border-2 border-white/20 object-cover sm:h-20 sm:w-20"
-              />
-              <p className="mt-2 truncate text-base font-black text-white">{faceoff.rightCard.repoName}</p>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                {faceoff.rightCard.type} · HP {faceoff.rightCard.hp}
-              </p>
+              <div
+                key={`right-${clashKey}`}
+                className={showClashMotion ? "animate-battle-recoil-right" : undefined}
+              >
+                <p className="mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                  {isSelfBattle ? "Side B (defender)" : "Opponent"}
+                </p>
+                <img
+                  src={faceoff.rightCard.ownerAvatar}
+                  alt=""
+                  className="mx-auto h-16 w-16 rounded-full border-2 border-white/20 object-cover sm:h-20 sm:w-20"
+                />
+                <p className="mt-2 truncate text-base font-black text-white">{faceoff.rightCard.repoName}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  {faceoff.rightCard.type} · HP {faceoff.rightCard.hp}
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="mt-6 space-y-2" aria-live="polite" aria-atomic="false">
+          <div className="relative z-10 mt-6 space-y-2" aria-live="polite" aria-atomic="false">
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">This exchange</p>
             {currentLogsVisible.map((log, i) => {
               const t = moveTypeStyle(log.moveType);
               return (
                 <div
                   key={`${log.turn}-${i}-${log.attackerCard}-${log.damage}-${i}`}
-                  className={`animate-battle-hit-in rounded-xl border px-3 py-2.5 text-sm sm:px-4 ${
-                    log.status === "knockout" ? "border-red-400/35 bg-red-500/10" : "border-white/10 bg-black/35"
+                  className={`rounded-xl border px-3 py-2.5 text-sm sm:px-4 ${
+                    log.status === "knockout"
+                      ? `border-red-400/35 bg-red-500/10 ${reduceMotion ? "" : "animate-battle-ko-pop"}`
+                      : `border-white/10 bg-black/35 ${reduceMotion ? "" : "animate-battle-hit-pop"}`
                   }`}
                 >
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -414,7 +444,10 @@ export function BattleResultView({
           </div>
 
           <div
+            key={exchangeResult.message}
             className={`mt-4 rounded-xl border px-4 py-3 text-center text-sm font-bold ${
+              reduceMotion ? "" : "animate-battle-exchange-pop"
+            } ${
               exchangeResult.kind === "ko"
                 ? exchangeResult.tone === "good"
                   ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
@@ -430,9 +463,21 @@ export function BattleResultView({
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <DeckPreview deck={attackerDeck} label={isSelfBattle ? "Attacker (Side A)" : "Your Deck"} highlight={done && isWin} />
-        <DeckPreview deck={defenderDeck} label={isSelfBattle ? "Defender (Side B)" : "Opponent"} highlight={done && !isWin && !isDraw} />
+        <DeckPreview
+          deck={attackerDeck}
+          label={isSelfBattle ? "Attacker (Side A)" : "Your Deck"}
+          highlight={done && isWin}
+          reducedMotion={reduceMotion}
+        />
+        <DeckPreview
+          deck={defenderDeck}
+          label={isSelfBattle ? "Defender (Side B)" : "Opponent"}
+          highlight={done && !isWin && !isDraw}
+          reducedMotion={reduceMotion}
+        />
       </div>
+
+      {done ? <BattleSharePanel outcome={outcome} variant="inline" /> : null}
 
       <details className="overflow-hidden rounded-xl border border-white/10 bg-black/40">
         <summary className="cursor-pointer px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-white/80 transition-colors hover:bg-white/5">
@@ -454,7 +499,7 @@ export function BattleResultView({
         <button
           type="button"
           onClick={onNewBattle}
-          className="min-h-11 w-full max-w-xs rounded-xl bg-gradient-to-r from-amber-300 to-orange-400 px-6 py-3 text-sm font-black text-slate-900 transition-all active:scale-[0.98] cursor-pointer sm:w-auto sm:max-w-none sm:min-h-0"
+          className="min-h-11 w-full max-w-xs rounded-xl bg-gradient-to-r from-amber-300 to-orange-400 px-6 py-3 text-sm font-black text-slate-900 shadow-[0_8px_28px_-8px_rgba(251,191,36,0.55)] transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_12px_32px_-6px_rgba(251,191,36,0.65)] active:scale-[0.98] cursor-pointer sm:w-auto sm:max-w-none sm:min-h-0"
         >
           Battle Again
         </button>
@@ -463,20 +508,39 @@ export function BattleResultView({
   );
 }
 
-function DeckPreview({ deck, label, highlight }: { deck: DeckSummary; label: string; highlight: boolean }) {
+function DeckPreview({
+  deck,
+  label,
+  highlight,
+  reducedMotion,
+}: {
+  deck: DeckSummary;
+  label: string;
+  highlight: boolean;
+  reducedMotion: boolean;
+}) {
   return (
     <div
-      className={`rounded-xl border p-3 sm:p-4 ${highlight ? "border-emerald-500/40 bg-emerald-500/5" : "border-white/10 bg-black/30"}`}
+      className={`rounded-xl border p-3 transition-[border-color,box-shadow] duration-500 sm:p-4 ${
+        highlight
+          ? `border-emerald-500/50 bg-emerald-500/5 ${reducedMotion ? "" : "animate-battle-winner-glow"}`
+          : "border-white/10 bg-black/30"
+      }`}
     >
       <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 sm:text-xs">{label}</p>
       <p className="mb-3 text-xs font-bold text-white sm:text-sm">
         @{deck.githubUsername} &middot; {deck.name}
       </p>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        {deck.cards.map((card) => (
+        {deck.cards.map((card, i) => (
           <div
             key={card.repoFullName}
-            className="rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-center sm:min-w-0 sm:flex-1"
+            style={
+              highlight && !reducedMotion ? { animationDelay: `${i * 80}ms` } : undefined
+            }
+            className={`rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-center sm:min-w-0 sm:flex-1 ${
+              highlight && !reducedMotion ? "animate-battle-deck-chip-in" : ""
+            }`}
           >
             <p className="truncate text-[10px] font-bold text-white">{card.repoName}</p>
             <p className="text-[10px] text-slate-500">

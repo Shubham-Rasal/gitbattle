@@ -80,9 +80,292 @@
   animation: battle-hit-in 0.35s ease-out both;
 }
 
+/* ── Battle arena: playback & results ─────────────────── */
+@keyframes battle-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes battle-result-reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(10px);
+    filter: brightness(1.35) saturate(1.2);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: brightness(1) saturate(1);
+  }
+}
+
+@keyframes battle-hud-live {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+    border-color: rgba(251, 191, 36, 0.28);
+  }
+  50% {
+    box-shadow: 0 0 28px -6px rgba(251, 191, 36, 0.35);
+    border-color: rgba(251, 191, 36, 0.45);
+  }
+}
+
+@keyframes battle-lunge-left {
+  0% {
+    transform: translateX(0) scale(1);
+  }
+  38% {
+    transform: translateX(-18px) scale(1.05);
+    filter: brightness(1.12);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes battle-recoil-right {
+  0% {
+    transform: translateX(0) rotate(0deg);
+  }
+  42% {
+    transform: translateX(14px) rotate(2.5deg);
+    filter: brightness(0.9);
+  }
+  100% {
+    transform: translateX(0) rotate(0deg);
+    filter: brightness(1);
+  }
+}
+
+@keyframes battle-vs-pop {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.12);
+  }
+  55% {
+    transform: scale(1.18);
+    box-shadow: 0 0 20px -4px rgba(251, 191, 36, 0.45);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.08);
+  }
+}
+
+@keyframes battle-hit-pop {
+  from {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes battle-ko-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.88);
+    filter: brightness(1.6);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.02);
+    filter: brightness(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes battle-exchange-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes battle-arena-radial {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes battle-winner-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
+  }
+  50% {
+    box-shadow: 0 0 32px -8px rgba(52, 211, 153, 0.35);
+  }
+}
+
+@keyframes battle-deck-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes battle-shake-light {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes battle-progress-glow {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow: 0 0 8px -2px rgba(251, 191, 36, 0.25);
+  }
+  50% {
+    filter: brightness(1.15);
+    box-shadow: 0 0 16px 0 rgba(251, 191, 36, 0.45);
+  }
+}
+
+@keyframes battle-search-ring {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-battle-view-in {
+  animation: battle-view-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-battle-result-reveal {
+  animation: battle-result-reveal 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-battle-hud-live {
+  animation: battle-hud-live 2.2s ease-in-out infinite;
+}
+
+.animate-battle-lunge-left {
+  animation: battle-lunge-left 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-battle-recoil-right {
+  animation: battle-recoil-right 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-battle-vs-pop {
+  animation: battle-vs-pop 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-battle-hit-pop {
+  animation: battle-hit-pop 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-battle-ko-pop {
+  animation: battle-ko-pop 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-battle-exchange-pop {
+  animation: battle-exchange-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-battle-arena-radial {
+  animation: battle-arena-radial 4s ease-in-out infinite;
+}
+
+.animate-battle-winner-glow {
+  animation: battle-winner-glow 2.4s ease-in-out infinite;
+}
+
+.animate-battle-deck-chip-in {
+  animation: battle-deck-chip-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-battle-shake-light {
+  animation: battle-shake-light 0.36s ease-out both;
+}
+
+.animate-battle-progress-glow {
+  animation: battle-progress-glow 1.4s ease-in-out infinite;
+}
+
+.animate-battle-search-ring {
+  animation: battle-search-ring 1.6s ease-in-out infinite;
+}
+
+.battle-faceoff-arena {
+  position: relative;
+  isolation: isolate;
+}
+
+.battle-faceoff-arena::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: radial-gradient(ellipse 85% 65% at 50% 20%, rgba(251, 191, 36, 0.09) 0%, transparent 58%),
+    radial-gradient(ellipse 70% 50% at 80% 90%, rgba(56, 189, 248, 0.06) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+  animation: battle-arena-radial 5s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-battle-hit-in {
-    animation: none;
+  .animate-battle-hit-in,
+  .animate-battle-view-in,
+  .animate-battle-result-reveal,
+  .animate-battle-hud-live,
+  .animate-battle-lunge-left,
+  .animate-battle-recoil-right,
+  .animate-battle-vs-pop,
+  .animate-battle-hit-pop,
+  .animate-battle-ko-pop,
+  .animate-battle-exchange-pop,
+  .animate-battle-arena-radial,
+  .animate-battle-winner-glow,
+  .animate-battle-deck-chip-in,
+  .animate-battle-shake-light,
+  .animate-battle-progress-glow,
+  .animate-battle-search-ring,
+  .battle-faceoff-arena::before {
+    animation: none !important;
   }
 }
 

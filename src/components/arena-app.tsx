@@ -624,7 +624,12 @@ export default function ArenaApp() {
               )}
 
               {battleLoading && (
-                <div className="flex justify-center py-12 text-white"><Spinner text="Finding opponent and battling..." /></div>
+                <div className="flex justify-center py-12">
+                  <div className="animate-battle-search-ring rounded-2xl border border-amber-200/25 bg-gradient-to-b from-amber-500/10 to-black/40 px-10 py-12 text-center text-white shadow-[0_0_40px_-12px_rgba(251,191,36,0.35)]">
+                    <p className="mb-4 text-[10px] font-black uppercase tracking-[0.2em] text-amber-200/90">Matchmaking</p>
+                    <Spinner text="Finding opponent and battling..." />
+                  </div>
+                </div>
               )}
 
               {battleOutcome && (
@@ -645,16 +650,30 @@ export default function ArenaApp() {
                   </p>
                 </div>
                 {myDecks.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearFlow();
-                      setDeckBuilderOpen(true);
-                    }}
-                    className="shrink-0 rounded-xl border border-amber-200/40 bg-gradient-to-r from-amber-300 to-orange-400 px-5 py-3 text-sm font-black text-slate-900 shadow-[0_8px_28px_-8px_rgba(251,191,36,0.45)] transition-all hover:from-amber-200 hover:to-orange-300 active:scale-[0.99] cursor-pointer sm:px-6"
-                  >
-                    Create deck
-                  </button>
+                  <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!selectedDeck) return;
+                        void handleStartBattle(selectedDeck.id, selectedDeck.githubUsername);
+                      }}
+                      disabled={battleLoading || !selectedDeck}
+                      title={!selectedDeck ? "Select a deck" : "Find an opponent and battle"}
+                      className="min-h-11 w-full rounded-xl bg-gradient-to-r from-red-500 to-orange-500 px-5 py-3 text-sm font-black text-white shadow-[0_8px_28px_-8px_rgba(239,68,68,0.5)] transition-all hover:from-red-400 hover:to-orange-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer sm:w-auto sm:min-h-0 sm:px-6"
+                    >
+                      {battleLoading ? "Battling…" : "Battle"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearFlow();
+                        setDeckBuilderOpen(true);
+                      }}
+                      className="min-h-11 w-full shrink-0 rounded-xl border border-amber-200/40 bg-gradient-to-r from-amber-300 to-orange-400 px-5 py-3 text-sm font-black text-slate-900 shadow-[0_8px_28px_-8px_rgba(251,191,36,0.45)] transition-all hover:from-amber-200 hover:to-orange-300 active:scale-[0.99] cursor-pointer sm:w-auto sm:px-6"
+                    >
+                      Create deck
+                    </button>
+                  </div>
                 ) : null}
               </header>
               {decksLoading ? (
