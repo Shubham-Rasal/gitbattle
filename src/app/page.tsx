@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import PokemonCardComponent from "@/components/pokemon-card";
 import { PokemonCard, RepoStats } from "@/types/card";
 import { DeckSummary, BattleOutcome, LeaderboardEntry, BattleRoundLog } from "@/types/game";
@@ -44,7 +44,7 @@ function StepIndicator({ step }: { step: StepState }) {
 
 function TabBar({ tab, setTab, isLoggedIn }: { tab: AppTab; setTab: (t: AppTab) => void; isLoggedIn: boolean }) {
   const tabs: { id: AppTab; label: string; authRequired: boolean }[] = [
-    { id: "create", label: "Create Deck", authRequired: false },
+    { id: "create", label: "Create Deck", authRequired: true },
     { id: "decks", label: "My Decks", authRequired: true },
     { id: "battle", label: "Battle", authRequired: true },
     { id: "leaderboard", label: "Leaderboard", authRequired: false },
@@ -89,10 +89,11 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(true);
 
   /* tab */
-  const [tab, setTab] = useState<AppTab>("create");
+  const [tab, setTab] = useState<AppTab>("leaderboard");
 
   /* create flow */
   const [step, setStep] = useState<StepState>("input");
+  const githubUsername = user?.user_metadata?.user_name as string | undefined;
   const [username, setUsername] = useState("");
   const [candidates, setCandidates] = useState<RepoStats[]>([]);
   const [selectedRepos, setSelectedRepos] = useState<Set<string>>(new Set());
@@ -119,12 +120,23 @@ export default function Home() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: u } }) => {
       setUser(u);
+      if (u) {
+        const gh = u.user_metadata?.user_name as string | undefined;
+        if (gh) setUsername(gh);
+        setTab("create");
+      }
       setAuthLoading(false);
     });
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const newUser = session?.user ?? null;
+      setUser(newUser);
+      if (newUser) {
+        const gh = newUser.user_metadata?.user_name as string | undefined;
+        if (gh) setUsername(gh);
+        setTab("create");
+      }
     });
     return () => subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,7 +154,7 @@ export default function Home() {
     setUser(null);
     setMyDecks([]);
     setBattleOutcome(null);
-    setTab("create");
+    setTab("leaderboard");
   }
 
   /* ── Deck CRUD ──────────────────────────────────── */
@@ -241,11 +253,10 @@ export default function Home() {
     });
   }
 
-  async function handleUserSubmit(e: FormEvent) {
-    e.preventDefault();
-    const handle = username.trim();
-    if (!/^[a-zA-Z0-9-]+$/.test(handle)) {
-      setError("Please enter a valid GitHub username.");
+  async function handleUserSubmit() {
+    const handle = githubUsername || username.trim();
+    if (!handle || !/^[a-zA-Z0-9-]+$/.test(handle)) {
+      setError("Could not determine your GitHub username.");
       return;
     }
 
@@ -410,22 +421,16 @@ export default function Home() {
         <>
           <StepIndicator step={step} />
 
-          <form onSubmit={handleUserSubmit} className="relative z-10 mb-6 w-full max-w-md px-0">
-            <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/35 p-1 backdrop-blur-sm sm:flex-row sm:items-stretch">
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter GitHub username"
-                disabled={step === "select" || step === "cards"}
-                autoComplete="username"
-                enterKeyHint="go"
-                className="min-h-11 w-full flex-1 rounded-xl border border-white/10 bg-black/70 px-3 py-3 text-base text-white placeholder:text-slate-500 transition-all focus:border-yellow-300/60 focus:outline-none focus:ring-2 focus:ring-yellow-300/60 disabled:opacity-70 sm:min-h-0 sm:px-4 sm:text-lg"
-              />
+          <div className="relative z-10 mb-6 w-full max-w-md px-0">
+            <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/35 p-2 backdrop-blur-sm sm:flex-row sm:items-center">
+              <div className="flex flex-1 items-center gap-2 rounded-xl bg-black/70 border border-white/10 px-4 py-3">
+                <span className="text-amber-200 font-black text-lg">@{githubUsername}</span>
+              </div>
               {step === "input" && (
                 <button
-                  type="submit"
-                  disabled={loading || !username.trim()}
+                  type="button"
+                  onClick={handleUserSubmit as () => void}
+                  disabled={loading}
                   className="min-h-11 w-full shrink-0 rounded-xl border border-amber-100/50 bg-gradient-to-r from-amber-300 to-orange-400 px-4 py-3 text-base font-black text-slate-900 shadow-lg shadow-amber-200/20 transition-all hover:from-amber-200 hover:to-orange-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer sm:w-auto sm:px-6 sm:text-lg"
                 >
                   {loading ? <Spinner /> : "Select Repos"}
@@ -441,7 +446,7 @@ export default function Home() {
                 </button>
               )}
             </div>
-          </form>
+          </div>
 
           {/* Repo picker */}
           {step === "select" && (
@@ -530,8 +535,8 @@ export default function Home() {
           {step === "input" && !loading && !error && (
             <div className="relative z-10 mt-6 px-2 text-center text-slate-400 sm:mt-8">
               <div className="mb-3 text-5xl opacity-50 sm:mb-4 sm:text-6xl">&#x2694;&#xFE0F;</div>
-              <p className="text-base text-white sm:text-lg">Enter a username to fetch repos and build your squad</p>
-              <p className="mt-1 text-xs text-slate-500 sm:text-sm">Example usernames: torvalds, sindresorhus, tj</p>
+              <p className="text-base text-white sm:text-lg">Select repos from your GitHub profile to build your squad</p>
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm">Click &quot;Select Repos&quot; to get started, @{githubUsername}</p>
             </div>
           )}
         </>
@@ -583,11 +588,11 @@ export default function Home() {
                       </button>
                     </div>
                   </div>
-                  <div className="flex flex-col items-center gap-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-start sm:gap-4">
+                  <div className="flex flex-col items-center gap-8 sm:flex-row sm:flex-wrap sm:items-start sm:justify-center sm:gap-x-6 sm:gap-y-10">
                     {deck.cards.map((card) => (
                       <div
                         key={card.repoFullName}
-                        className="flex justify-center sm:-mr-28 sm:-mb-36 sm:origin-top-left sm:scale-[0.65]"
+                        className="flex w-full max-w-[330px] shrink-0 justify-center sm:w-[330px] sm:max-w-[330px] sm:-mr-28 sm:-mb-36 sm:origin-top-left sm:scale-[0.65]"
                       >
                         <PokemonCardComponent card={card} />
                       </div>

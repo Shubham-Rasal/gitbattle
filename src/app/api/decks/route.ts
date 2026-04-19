@@ -6,15 +6,19 @@ export async function GET() {
   const supabase = await createServerSupabase();
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return Response.json(
+      { error: "Unauthorized", debug: authError?.message ?? "no user in session" },
+      { status: 401 },
+    );
   }
 
   try {
     const decks = await listMyDecks(supabase, user.id);
-    return Response.json({ decks });
+    return Response.json({ decks, userId: user.id });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to list decks";
     return Response.json({ error: msg }, { status: 500 });

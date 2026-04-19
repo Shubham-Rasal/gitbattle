@@ -55,6 +55,23 @@ export async function listMyDecks(
   return ((data ?? []) as DeckRow[]).map(toDeckSummary);
 }
 
+export async function listRecentPublicDecks(
+  supabase: SupabaseClient,
+  limit = 6,
+): Promise<DeckSummary[]> {
+  const safeLimit = Math.max(1, Math.min(limit, 24));
+
+  const { data, error } = await supabase
+    .from("gxd_decks")
+    .select("*")
+    .eq("is_public", true)
+    .order("created_at", { ascending: false })
+    .limit(safeLimit);
+
+  if (error) throw new Error(`Failed to list recent decks: ${error.message}`);
+  return ((data ?? []) as DeckRow[]).map(toDeckSummary);
+}
+
 export async function getDeckById(
   supabase: SupabaseClient,
   deckId: string,

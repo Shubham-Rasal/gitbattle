@@ -164,7 +164,7 @@ export default function PokemonCardComponent({ card }: { card: PokemonCard }) {
         />
       ) : null}
       <div
-        className={`perspective-[1000px] w-full max-w-[min(100%,20.625rem)] shrink-0 ${expanded ? "relative z-[100]" : ""}`}
+        className={`perspective-[1000px] w-full max-w-[330px] shrink-0 ${expanded ? "relative z-[100]" : ""}`}
         style={{ minHeight: expanded && placeholderHeight ? placeholderHeight : undefined }}
       >
         <div
