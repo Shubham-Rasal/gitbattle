@@ -136,19 +136,39 @@ export async function getMyBattleHistory(
 
 const BATTLE_SHARE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const BATTLE_UUID_IN_TEXT_RE =
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+/**
+ * Extract a canonical battle id from a route param or pasted string.
+ * Pasted share blurbs often append summary after the UUID (space/newline), which breaks lookups.
+ */
+export function parseBattleShareId(raw: string): string | null {
+  let s = raw.trim();
+  try {
+    s = decodeURIComponent(s);
+  } catch {
+    /* keep s */
+  }
+  s = s.trim();
+  const m = s.match(BATTLE_UUID_IN_TEXT_RE);
+  return m ? m[0] : null;
+}
+
 /**
  * Load a persisted battle + both decks for public share pages.
  * Uses the service role so deck rows resolve even when RLS would block anon reads.
  */
 export async function getBattleOutcomeForShare(battleId: string): Promise<BattleOutcome | null> {
-  if (!BATTLE_SHARE_ID_RE.test(battleId)) return null;
+  const canon = parseBattleShareId(battleId) ?? battleId.trim();
+  if (!BATTLE_SHARE_ID_RE.test(canon)) return null;
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) return null;
 
   const admin = createServiceClient();
   const { data: row, error } = await admin
     .from("gxd_battle_sessions")
     .select("*")
-    .eq("id", battleId)
+    .eq("id", canon)
     .maybeSingle();
 
   if (error || !row) return null;

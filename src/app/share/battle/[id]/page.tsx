@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { BattleSharePanel } from "@/components/battle-share-panel";
-import { getBattleOutcomeForShare } from "@/lib/battle-service";
+import { getBattleOutcomeForShare, parseBattleShareId } from "@/lib/battle-service";
 
 type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params;
+  const { id: rawId } = await params;
+  const id = parseBattleShareId(rawId);
+  if (!id) {
+    return { title: "Battle · GitBattle" };
+  }
   const outcome = await getBattleOutcomeForShare(id);
   if (!outcome) {
     return { title: "Battle · GitBattle" };
@@ -33,7 +37,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ShareBattlePage({ params }: Props) {
-  const { id } = await params;
+  const { id: rawId } = await params;
+  const id = parseBattleShareId(rawId);
+  if (!id) notFound();
+
+  let normalizedRaw = rawId.trim();
+  try {
+    normalizedRaw = decodeURIComponent(normalizedRaw).trim();
+  } catch {
+    /* keep */
+  }
+  if (normalizedRaw !== id) {
+    redirect(`/share/battle/${id}`);
+  }
+
   const outcome = await getBattleOutcomeForShare(id);
   if (!outcome) notFound();
 

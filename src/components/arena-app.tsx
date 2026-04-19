@@ -103,7 +103,7 @@ function StepIndicator({ step }: { step: StepState }) {
 export default function ArenaApp() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, authLoading, signIn, signOut: ctxSignOut } = useAuth();
+  const { user, authLoading, signIn, signOut: ctxSignOut, supabase } = useAuth();
   const tab: AppTab = tabFromPathname(pathname);
 
   /* create flow */
@@ -122,8 +122,8 @@ export default function ArenaApp() {
   const [myDecks, setMyDecks] = useState<DeckSummary[]>([]);
   const [decksLoading, setDecksLoading] = useState(false);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
-  /** When true with existing decks, show the deck builder hero instead of the roster. */
-  const [deckBuilderOpen, setDeckBuilderOpen] = useState(false);
+
+  const isDecksCreate = pathname === "/decks/create";
 
   /* battle */
   const [battleOutcome, setBattleOutcome] = useState<BattleOutcome | null>(null);
@@ -142,22 +142,28 @@ export default function ArenaApp() {
     if (gh) setUsername(gh);
   }, [user]);
 
-  useEffect(() => {
-    if (!pathname.startsWith("/decks")) setDeckBuilderOpen(false);
-  }, [pathname]);
-
+  /* Only leave /decks when there is truly no session — avoids flashing to leaderboard if `user` lags behind Supabase during refresh. */
   useEffect(() => {
     if (authLoading) return;
-    if (pathname.startsWith("/decks") && !user) {
-      router.replace("/leaderboard");
-    }
-  }, [authLoading, pathname, user, router]);
+    if (!pathname.startsWith("/decks")) return;
+    if (user) return;
+
+    let cancelled = false;
+    void (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (!session) router.replace("/leaderboard");
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, pathname, user, router, supabase]);
 
   async function signOut() {
     await ctxSignOut();
     setMyDecks([]);
     setBattleOutcome(null);
-    setDeckBuilderOpen(false);
     router.push("/leaderboard");
   }
 
@@ -236,7 +242,6 @@ export default function ArenaApp() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save");
       clearFlow();
-      setDeckBuilderOpen(false);
       router.push("/decks");
       fetchMyDecks();
     } catch (err) {
@@ -264,6 +269,16 @@ export default function ArenaApp() {
     setSelectedRepos(new Set());
     setDeckName("");
     setError("");
+  }
+
+  function openDeckBuilderFromRoster() {
+    clearFlow();
+    router.push("/decks/create");
+  }
+
+  function closeDeckBuilderToRoster() {
+    clearFlow();
+    router.push("/decks");
   }
 
   function toggleRepo(fullName: string) {
@@ -397,7 +412,7 @@ export default function ArenaApp() {
     tab === "decks" &&
     !!user &&
     step === "input" &&
-    (deckBuilderOpen || (!decksLoading && myDecks.length === 0));
+    (isDecksCreate || (!decksLoading && myDecks.length === 0 && pathname === "/decks"));
 
   return (
     <main
@@ -425,13 +440,12 @@ export default function ArenaApp() {
               onSignOut={signOut}
             />
           </div>
-          {deckBuilderOpen && myDecks.length > 0 ? (
+          {isDecksCreate && myDecks.length > 0 ? (
             <div className="relative z-20 mx-auto w-full max-w-[80rem] px-4 pt-3 sm:px-6 lg:px-10">
               <button
                 type="button"
                 onClick={() => {
-                  clearFlow();
-                  setDeckBuilderOpen(false);
+                  closeDeckBuilderToRoster();
                 }}
                 className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-left text-xs font-bold text-slate-300 transition-colors hover:border-white/25 hover:text-white cursor-pointer"
               >
@@ -665,9 +679,9 @@ export default function ArenaApp() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        clearFlow();
-                        setDeckBuilderOpen(true);
+                      onClick={(e) => {
+                        e.preventDefault();
+                        openDeckBuilderFromRoster();
                       }}
                       className="min-h-11 w-full shrink-0 rounded-xl border border-amber-200/40 bg-gradient-to-r from-amber-300 to-orange-400 px-5 py-3 text-sm font-black text-slate-900 shadow-[0_8px_28px_-8px_rgba(251,191,36,0.45)] transition-all hover:from-amber-200 hover:to-orange-300 active:scale-[0.99] cursor-pointer sm:w-auto sm:px-6"
                     >

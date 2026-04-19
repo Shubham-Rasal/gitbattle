@@ -6,7 +6,7 @@ import { toPng } from "html-to-image";
 import type { BattleOutcome } from "@/types/game";
 import { BattleShareCard, BATTLE_SHARE_EXPORT_WIDTH_PX } from "@/components/battle-share-card";
 
-function formatBattleSummary(o: BattleOutcome): string {
+function formatBattleSummaryLines(o: BattleOutcome): string[] {
   const { battle, attackerDeck, defenderDeck } = o;
   const a = battle.attackerUsername ?? attackerDeck.githubUsername;
   const d = battle.defenderUsername ?? defenderDeck.githubUsername;
@@ -16,9 +16,12 @@ function formatBattleSummary(o: BattleOutcome): string {
     `GitBattle — ${a} vs ${d}`,
     `Decks: ${attackerDeck.name} · ${defenderDeck.name}`,
     `Result: ${res} · ${battle.roundCount} rounds · ${battle.roundLogs.length} hits · ${ko} KO`,
-    "",
-    typeof window !== "undefined" ? `${window.location.origin}/share/battle/${battle.id}` : `/share/battle/${battle.id}`,
-  ].join("\n");
+  ];
+}
+
+/** Plain summary + URL on its own final line (avoids merged paste being treated as part of the path). */
+function formatBattleSummaryForClipboard(o: BattleOutcome, pageUrl: string): string {
+  return [...formatBattleSummaryLines(o), "", pageUrl].join("\n");
 }
 
 type BattleSharePanelProps = {
@@ -30,7 +33,7 @@ type BattleSharePanelProps = {
 export function BattleSharePanel({ outcome, variant = "inline" }: BattleSharePanelProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const battleId = outcome.battle.id;
+  const battleId = outcome.battle.id.trim();
   const sharePath = `/share/battle/${battleId}`;
 
   const flash = useCallback((msg: string) => {
@@ -39,25 +42,35 @@ export function BattleSharePanel({ outcome, variant = "inline" }: BattleSharePan
   }, []);
 
   const absoluteUrl =
-    typeof window !== "undefined" ? `${window.location.origin}${sharePath}` : sharePath;
+    typeof window !== "undefined"
+      ? new URL(sharePath, window.location.origin).href
+      : sharePath;
 
   const copyLink = useCallback(async () => {
+    const url =
+      typeof window !== "undefined"
+        ? new URL(sharePath, window.location.origin).href
+        : absoluteUrl;
     try {
-      await navigator.clipboard.writeText(absoluteUrl);
+      await navigator.clipboard.writeText(url);
       flash("Link copied");
     } catch {
       flash("Could not copy link");
     }
-  }, [absoluteUrl, flash]);
+  }, [absoluteUrl, flash, sharePath]);
 
   const copySummary = useCallback(async () => {
+    const pageUrl =
+      typeof window !== "undefined"
+        ? new URL(sharePath, window.location.origin).href
+        : sharePath;
     try {
-      await navigator.clipboard.writeText(formatBattleSummary(outcome));
+      await navigator.clipboard.writeText(formatBattleSummaryForClipboard(outcome, pageUrl));
       flash("Summary copied");
     } catch {
       flash("Could not copy");
     }
-  }, [outcome, flash]);
+  }, [outcome, flash, sharePath]);
 
   const downloadPng = useCallback(async () => {
     const node = cardRef.current;
@@ -83,16 +96,23 @@ export function BattleSharePanel({ outcome, variant = "inline" }: BattleSharePan
       flash("Use Copy link on this device");
       return;
     }
+    const { battle, attackerDeck, defenderDeck } = outcome;
+    const a = battle.attackerUsername ?? attackerDeck.githubUsername;
+    const d = battle.defenderUsername ?? defenderDeck.githubUsername;
+    const url =
+      typeof window !== "undefined"
+        ? new URL(sharePath, window.location.origin).href
+        : absoluteUrl;
     try {
+      /* Omit `text`: many platforms concatenate text + url into one string when copying from the share sheet. */
       await navigator.share({
-        title: "GitBattle",
-        text: formatBattleSummary(outcome).split("\n").slice(0, 3).join(" · "),
-        url: absoluteUrl,
+        title: `GitBattle · ${a} vs ${d}`,
+        url,
       });
     } catch (e) {
       if ((e as Error).name !== "AbortError") flash("Share cancelled");
     }
-  }, [absoluteUrl, outcome, flash]);
+  }, [absoluteUrl, outcome, flash, sharePath]);
 
   const isPage = variant === "page";
 
