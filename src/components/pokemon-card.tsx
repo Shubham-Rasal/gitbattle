@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { PokemonCard } from "@/types/card";
 import { TYPE_COLORS, RARITY_STYLES } from "@/lib/type-colors";
 
@@ -60,16 +60,62 @@ const RARITY_VISUALS: Record<string, RarityVisual> = {
   },
 };
 
+type HeroVars = { dx: number; dy: number; s: number; tw: number };
+
 export default function PokemonCardComponent({ card }: { card: PokemonCard }) {
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [isHovering, setIsHovering] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [heroVars, setHeroVars] = useState<HeroVars | null>(null);
+  const [placeholderHeight, setPlaceholderHeight] = useState<number | undefined>();
   const cardRef = useRef<HTMLDivElement>(null);
 
   const typeColors = TYPE_COLORS[card.type];
   const rarityStyle = RARITY_STYLES[card.rarity];
   const rarityVisual = RARITY_VISUALS[card.rarity];
 
+  const closeExpanded = useCallback(() => {
+    setExpanded(false);
+    setHeroVars(null);
+    setIsHovering(false);
+    setTilt({ x: 0, y: 0 });
+  }, []);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [expanded]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") closeExpanded();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded, closeExpanded]);
+
+  function handleExpand() {
+    const el = cardRef.current;
+    if (!el || expanded) return;
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const tw = Math.min(vw - 24, 400);
+    const dx = r.left + r.width / 2 - vw / 2;
+    const dy = r.top + r.height / 2 - vh / 2;
+    const s = r.width / tw;
+    setPlaceholderHeight(el.offsetHeight);
+    setHeroVars({ dx, dy, s, tw });
+    setExpanded(true);
+  }
+
   function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    if (expanded) return;
     if (!cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
@@ -90,32 +136,84 @@ export default function PokemonCardComponent({ card }: { card: PokemonCard }) {
       ? "before:absolute before:inset-0 before:rounded-[1.25rem] before:bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.45),rgba(255,255,255,0)_55%)] before:opacity-0 before:transition-opacity before:duration-500 before:pointer-events-none before:z-0 "
       : "before:absolute before:inset-0 before:rounded-[1.25rem] before:bg-[linear-gradient(110deg,rgba(255,255,255,0.20),rgba(255,255,255,0)_45%,rgba(255,255,255,0.22))] before:opacity-10 before:transition-opacity before:duration-700 before:pointer-events-none before:z-0";
 
-  return (
-    <div className="perspective-[1000px]">
-      <div
-        ref={cardRef}
-        onMouseMove={handleMouseMove}
-        onMouseEnter={() => setIsHovering(true)}
-        onMouseLeave={handleMouseLeave}
-        className={`group relative w-[330px] rounded-[1.25rem] overflow-hidden ${rarityStyle} ${auraClass} ${rarityStyle} transition-transform duration-250 ease-out cursor-pointer`}
-        style={{
+  const cardSurfaceStyle: CSSProperties =
+    expanded && heroVars
+      ? {
+          width: heroVars.tw,
+          transformStyle: "preserve-3d",
+          isolation: "isolate",
+          ["--hero-dx" as string]: `${heroVars.dx}px`,
+          ["--hero-dy" as string]: `${heroVars.dy}px`,
+          ["--hero-s" as string]: String(heroVars.s),
+        }
+      : {
           transform: isHovering
             ? `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(1.02)`
             : "rotateX(0) rotateY(0) scale(1)",
           transformStyle: "preserve-3d",
-        }}
+        };
+
+  return (
+    <>
+      {expanded ? (
+        <button
+          type="button"
+          aria-label="Close card"
+          className="fixed inset-0 z-[90] cursor-zoom-out border-0 bg-black/72 p-0 backdrop-blur-[2px] animate-backdrop-in"
+          onClick={closeExpanded}
+        />
+      ) : null}
+      <div
+        className={`perspective-[1000px] w-full max-w-[min(100%,20.625rem)] shrink-0 ${expanded ? "relative z-[100]" : ""}`}
+        style={{ minHeight: expanded && placeholderHeight ? placeholderHeight : undefined }}
       >
         <div
-          className={`absolute inset-[3px] rounded-[1.1rem] border ${typeColors.border} ${rarityVisual.glow} pointer-events-none z-30 transition-opacity duration-500 ${isHovering ? "opacity-100" : "opacity-70"} ${isHovering ? "shadow-[0_0_36px]" : "shadow-[0_0_18px]"}`}
+          ref={cardRef}
+          role={expanded ? "dialog" : "button"}
+          aria-modal={expanded ? true : undefined}
+          aria-label={expanded ? `${card.repoName} card` : undefined}
+          tabIndex={0}
+          onClick={() => {
+            if (!expanded) handleExpand();
+          }}
+          onKeyDown={(e) => {
+            if (!expanded && (e.key === "Enter" || e.key === " ")) {
+              e.preventDefault();
+              handleExpand();
+            }
+          }}
+          onMouseMove={handleMouseMove}
+          onMouseEnter={() => {
+            if (!expanded) setIsHovering(true);
+          }}
+          onMouseLeave={handleMouseLeave}
+          className={`group rounded-[1.25rem] overflow-hidden ${rarityStyle} ${auraClass} ${rarityStyle} ${
+            expanded
+              ? "fixed left-1/2 top-1/2 z-[100] w-[min(calc(100vw-1.5rem),400px)] max-w-[min(calc(100vw-1.5rem),400px)] animate-card-hero-enter cursor-default"
+              : "relative w-full max-w-[330px] transition-transform duration-250 ease-out cursor-pointer"
+          }`}
+          style={cardSurfaceStyle}
+        >
+        {expanded ? (
+          <div
+            className="pointer-events-none absolute inset-0 z-[38] overflow-hidden rounded-[1.25rem] animate-card-shine-sweep"
+            style={{
+              background:
+                "linear-gradient(118deg, transparent 44%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0.22) 53%, transparent 59%)",
+            }}
+          />
+        ) : null}
+        <div
+          className={`absolute inset-[3px] rounded-[1.1rem] border ${typeColors.border} ${rarityVisual.glow} pointer-events-none z-30 transition-opacity duration-500 ${isHovering || expanded ? "opacity-100" : "opacity-70"} ${isHovering || expanded ? "shadow-[0_0_36px]" : "shadow-[0_0_18px]"}`}
         />
         <div
           className="absolute inset-0 z-0 pointer-events-none"
           style={{
             backgroundImage:
               "linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.08) 30%, transparent 34%, rgba(255,255,255,0.05) 68%, transparent 72%)",
-            transform: `translateX(${isHovering ? tilt.y * 0.75 : 0}px)`,
-            opacity: isHovering ? 0.8 : 0.45,
-            mixBlendMode: "screen",
+            transform: `translateX(${!expanded && isHovering ? tilt.y * 0.75 : 0}px)`,
+            opacity: expanded ? 0.28 : isHovering ? 0.8 : 0.45,
+            mixBlendMode: expanded ? "normal" : "screen",
           }}
         />
 
@@ -124,8 +222,8 @@ export default function PokemonCardComponent({ card }: { card: PokemonCard }) {
           <div
             className="absolute inset-0 z-20 pointer-events-none rounded-[1.25rem] bg-gradient-to-br from-transparent via-white/15 to-transparent transition-opacity duration-700"
             style={{
-              opacity: isHovering ? 0.45 : 0.16,
-              transform: `translateX(${isHovering ? tilt.y * 2.5 : 0}px) rotate(${isHovering ? 4 : 0}deg)`,
+              opacity: expanded ? 0.5 : isHovering ? 0.45 : 0.16,
+              transform: `translateX(${!expanded && isHovering ? tilt.y * 2.5 : 0}px) rotate(${!expanded && isHovering ? 4 : 0}deg)`,
             }}
           />
         )}
@@ -266,6 +364,7 @@ export default function PokemonCardComponent({ card }: { card: PokemonCard }) {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
