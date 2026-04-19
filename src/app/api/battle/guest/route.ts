@@ -15,6 +15,9 @@ export async function POST(request: Request) {
     }
 
     const { outcome, persisted } = await runGuestGithubBattle(attacker, defender);
+    if (!persisted) {
+      console.warn("[api/battle/guest] battle simulated only — not persisted (check SUPABASE_SERVICE_ROLE_KEY and DB migration)");
+    }
     return Response.json({ ...outcome, persisted }, { status: 201 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Battle failed";

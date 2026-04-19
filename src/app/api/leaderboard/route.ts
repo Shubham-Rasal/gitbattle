@@ -1,8 +1,11 @@
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, createServiceClient } from "@/lib/supabase/server";
 import { getLeaderboard, getRecentBattles } from "@/lib/battle-service";
 
 export async function GET() {
-  const supabase = await createServerSupabase();
+  /** Service role avoids RLS edge cases and matches the username-based leaderboard view after guest migrations. */
+  const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+    ? createServiceClient()
+    : await createServerSupabase();
 
   try {
     const [entries, recentBattles] = await Promise.all([

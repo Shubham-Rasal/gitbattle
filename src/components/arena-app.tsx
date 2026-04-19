@@ -149,6 +149,7 @@ export default function ArenaApp() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [lbLoading, setLbLoading] = useState(false);
   const [recentBattles, setRecentBattles] = useState<RecentBattleEntry[]>([]);
+  const [recentBattleFilter, setRecentBattleFilter] = useState<"all" | "matchup" | "arena">("all");
   const [recentDecks, setRecentDecks] = useState<DeckSummary[]>([]);
   const [recentDecksLoading, setRecentDecksLoading] = useState(false);
 
@@ -240,6 +241,18 @@ export default function ArenaApp() {
     () => (selectedDeckId ? myDecks.find((d) => d.id === selectedDeckId) ?? null : null),
     [myDecks, selectedDeckId],
   );
+
+  const filteredRecentBattles = useMemo(() => {
+    if (recentBattleFilter === "matchup") return recentBattles.filter((r) => r.isGuestMatchup);
+    if (recentBattleFilter === "arena") return recentBattles.filter((r) => !r.isGuestMatchup);
+    return recentBattles;
+  }, [recentBattles, recentBattleFilter]);
+
+  const recentMatchupCount = useMemo(
+    () => recentBattles.reduce((n, r) => n + (r.isGuestMatchup ? 1 : 0), 0),
+    [recentBattles],
+  );
+  const recentArenaCount = recentBattles.length - recentMatchupCount;
 
   async function handleSaveDeck() {
     if (!user || cards.length === 0) return;
@@ -882,6 +895,10 @@ export default function ArenaApp() {
               <h3 className="mb-4 text-sm font-black uppercase tracking-[0.14em] text-amber-200 sm:mb-5 sm:text-xs">
                 Battle Rankings
               </h3>
+              <p className="mx-auto mb-4 max-w-2xl text-center text-xs leading-relaxed text-slate-500 sm:mb-5 sm:text-left">
+                Rankings merge everyone by GitHub handle: signed-in arena fights and no-sign-in GitHub matchups (once the
+                server saves them) all move the same win/loss columns.
+              </p>
 
             {lbLoading ? (
               <div className="flex justify-center py-12 text-white"><Spinner text="Loading..." /></div>
@@ -915,7 +932,7 @@ export default function ArenaApp() {
 
                       return (
                         <tr
-                          key={entry.githubUsername}
+                          key={entry.userId}
                           className={`border-b border-white/5 transition-colors hover:bg-white/5 ${rank <= 3 ? "bg-white/[0.02]" : ""}`}
                         >
                           <td className={`px-2 py-3 font-black sm:px-4 sm:py-4 ${medalColor}`}>
@@ -989,12 +1006,45 @@ export default function ArenaApp() {
                 Every saved fight has a shareable recap card — including guest matchups (no sign-in). Open a row to copy
                 the link or save a PNG.
               </p>
+              {!lbLoading && recentBattles.length > 0 ? (
+                <div className="mb-4 flex flex-wrap justify-center gap-2 sm:justify-start">
+                  {(
+                    [
+                      ["all", "All", recentBattles.length],
+                      ["matchup", "GitHub matchups", recentMatchupCount],
+                      ["arena", "Arena", recentArenaCount],
+                    ] as const
+                  ).map(([id, label, count]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setRecentBattleFilter(id)}
+                      className={`rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wide transition-colors sm:text-[11px] ${
+                        recentBattleFilter === id
+                          ? "bg-violet-500/25 text-violet-100 ring-1 ring-violet-400/40"
+                          : "bg-white/5 text-slate-400 ring-1 ring-white/10 hover:bg-white/10 hover:text-slate-200"
+                      }`}
+                    >
+                      {label}
+                      <span className="ml-1.5 tabular-nums text-slate-500">({count})</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {lbLoading ? (
                 <div className="flex justify-center py-8 text-white">
                   <Spinner text="Loading battles..." />
                 </div>
               ) : recentBattles.length === 0 ? (
                 <p className="py-8 text-center text-sm text-slate-400">No battles recorded yet. Run a matchup or sign in and battle from My Decks.</p>
+              ) : filteredRecentBattles.length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-400">
+                  No battles in this filter yet.{" "}
+                  <Link href="/matchup" className="font-semibold text-violet-200 underline decoration-violet-400/30 underline-offset-2 hover:text-violet-100">
+                    Run a GitHub matchup
+                  </Link>{" "}
+                  or switch back to &ldquo;All&rdquo;.
+                </p>
               ) : (
                 <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm [-webkit-overflow-scrolling:touch]">
                   <table className="w-full min-w-[32rem] text-left text-sm">
@@ -1009,7 +1059,7 @@ export default function ArenaApp() {
                       </tr>
                     </thead>
                     <tbody>
-                      {recentBattles.map((row) => {
+                      {filteredRecentBattles.map((row) => {
                         const a = row.attackerUsername ?? "—";
                         const d = row.defenderUsername ?? "—";
                         return (

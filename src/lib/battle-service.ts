@@ -366,8 +366,10 @@ export async function runGuestGithubBattle(
     await persistGuestBattle({ battle, attackerDeck, defenderDeck });
     battle = { ...battle, isGuest: false };
     persisted = true;
-  } catch {
-    /* No service role or DB not migrated — still return simulated outcome */
+  } catch (err) {
+    /* No service role, RLS, or schema not migrated — still return simulated outcome */
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[runGuestGithubBattle] persist failed:", msg);
   }
 
   return {
