@@ -6,6 +6,7 @@ import { BattleResultView } from "@/components/battle-result-view";
 import CreateLandingHero from "@/components/create-landing-hero";
 import PokemonCardComponent from "@/components/pokemon-card";
 import SiteHeader, { tabFromPathname, type AppTab } from "@/components/site-header";
+import { GuestMatchupPanel } from "@/components/guest-matchup-panel";
 import Spinner from "@/components/spinner";
 import { useAuth } from "@/contexts/auth-context";
 import { PokemonCard, RepoStats } from "@/types/card";
@@ -810,6 +811,13 @@ export default function ArenaApp() {
               ) : null}
             </>
           )}
+        </div>
+      )}
+
+      {/* ═══════════════ GUEST MATCHUP (no auth) ═══════════════ */}
+      {tab === "matchup" && (
+        <div className="relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+          <GuestMatchupPanel />
         </div>
       )}
 

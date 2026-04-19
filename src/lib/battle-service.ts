@@ -1,12 +1,25 @@
+import { randomUUID } from "node:crypto";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { generatePokemonCard } from "@/lib/card-generator";
 import { runBattle } from "@/lib/battle/engine";
 import { getDeckById, pickRandomOpponentDeck } from "@/lib/deck-service";
+import { fetchTopStarredRepos } from "@/lib/github";
 import { createServiceClient } from "@/lib/supabase/server";
+import type { PokemonCard } from "@/types/card";
 import {
   BattleSessionRow,
   BattleSessionRecord,
   BattleOutcome,
+  DeckSummary,
 } from "@/types/game";
+
+const GH_USER_RE = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
+
+export function normalizeGithubUsername(raw: string): string | null {
+  const s = raw.trim();
+  if (!s || !GH_USER_RE.test(s)) return null;
+  return s;
+}
 
 function toRecord(row: BattleSessionRow): BattleSessionRecord {
   return {
@@ -182,4 +195,91 @@ export async function getBattleOutcomeForShare(battleId: string): Promise<Battle
     attackerDeck,
     defenderDeck,
   };
+}
+
+function guestDeckName(username: string, cards: PokemonCard[]): string {
+  const types = [...new Set(cards.map((c) => c.type))];
+  return types.length > 0 ? `${username}'s ${types.join("/")} Deck` : `${username}'s Deck`;
+}
+
+/**
+ * Simulated battle from each user’s top 3 starred public repos (no sign-in, not persisted).
+ */
+export async function runGuestGithubBattle(
+  attackerUsername: string,
+  defenderUsername: string,
+): Promise<BattleOutcome> {
+  const a = normalizeGithubUsername(attackerUsername);
+  const d = normalizeGithubUsername(defenderUsername);
+  if (!a || !d) throw new Error("Enter valid GitHub usernames");
+  if (a.toLowerCase() === d.toLowerCase()) throw new Error("Pick two different GitHub users");
+
+  const [atkRepos, defRepos] = await Promise.all([
+    fetchTopStarredRepos(a, 3),
+    fetchTopStarredRepos(d, 3),
+  ]);
+
+  const [atkCards, defCards] = await Promise.all([
+    Promise.all(atkRepos.map(generatePokemonCard)),
+    Promise.all(defRepos.map(generatePokemonCard)),
+  ]);
+
+  const seed = Date.now();
+  const engine = runBattle(atkCards, defCards, seed);
+  const now = new Date().toISOString();
+  const battleId = `guest-${randomUUID()}`;
+  const atkDeckId = `guest-deck-${randomUUID()}`;
+  const defDeckId = `guest-deck-${randomUUID()}`;
+
+  let winnerUserId: string | null = null;
+  let winnerDeckId: string | null = null;
+  if (engine.winnerSide === "attacker") {
+    winnerUserId = "guest-attacker";
+    winnerDeckId = atkDeckId;
+  } else if (engine.winnerSide === "defender") {
+    winnerUserId = "guest-defender";
+    winnerDeckId = defDeckId;
+  }
+
+  const attackerDeck: DeckSummary = {
+    id: atkDeckId,
+    ownerId: "guest",
+    githubUsername: a,
+    name: guestDeckName(a, atkCards),
+    cards: atkCards,
+    isPublic: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const defenderDeck: DeckSummary = {
+    id: defDeckId,
+    ownerId: "guest",
+    githubUsername: d,
+    name: guestDeckName(d, defCards),
+    cards: defCards,
+    isPublic: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const battle: BattleSessionRecord = {
+    id: battleId,
+    attackerUserId: "guest-attacker",
+    defenderUserId: "guest-defender",
+    attackerDeckId: atkDeckId,
+    defenderDeckId: defDeckId,
+    attackerUsername: a,
+    defenderUsername: d,
+    winnerUserId,
+    winnerDeckId,
+    result: engine.result,
+    roundCount: engine.roundCount,
+    roundLogs: engine.roundLogs,
+    seed,
+    createdAt: now,
+    isGuest: true,
+  };
+
+  return { battle, attackerDeck, defenderDeck };
 }

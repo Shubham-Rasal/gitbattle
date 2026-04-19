@@ -4,16 +4,18 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { usePathname, useRouter } from "next/navigation";
 
-export type AppTab = "decks" | "leaderboard";
+export type AppTab = "decks" | "matchup" | "leaderboard";
 
 const NAV: { id: AppTab; label: string; shortLabel: string; authRequired: boolean; href: string }[] = [
   { id: "decks", label: "My Decks", shortLabel: "Decks", authRequired: true, href: "/decks" },
+  { id: "matchup", label: "Matchup", shortLabel: "Vs", authRequired: false, href: "/matchup" },
   { id: "leaderboard", label: "Leaderboard", shortLabel: "Ranks", authRequired: false, href: "/leaderboard" },
 ];
 
 export function tabFromPathname(pathname: string | null): AppTab {
   if (!pathname) return "leaderboard";
   if (pathname.startsWith("/decks")) return "decks";
+  if (pathname.startsWith("/matchup")) return "matchup";
   return "leaderboard";
 }
 

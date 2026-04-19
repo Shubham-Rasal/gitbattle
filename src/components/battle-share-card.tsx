@@ -16,6 +16,7 @@ export const BattleShareCard = forwardRef<HTMLDivElement, BattleShareCardProps>(
     const isSelfBattle = attackerDeck.id === defenderDeck.id;
     const isWin = battle.result === "win";
     const isDraw = battle.result === "draw";
+    const isGuest = battle.isGuest === true;
     const koCount = battle.roundLogs.filter((l) => l.status === "knockout").length;
     const totalDamage = battle.roundLogs.reduce((s, l) => s + l.damage, 0);
     const dateStr = new Date(battle.createdAt).toLocaleDateString(undefined, {
@@ -24,17 +25,27 @@ export const BattleShareCard = forwardRef<HTMLDivElement, BattleShareCardProps>(
       year: "numeric",
     });
 
-    const resultLabel = isDraw ? "Draw" : isWin ? "Victory" : "Defeat";
+    const a = battle.attackerUsername ?? attackerDeck.githubUsername;
+    const d = battle.defenderUsername ?? defenderDeck.githubUsername;
+
+    const resultLabel = isDraw
+      ? "Draw"
+      : isGuest
+        ? isWin
+          ? `${a} wins`
+          : `${d} wins`
+        : isWin
+          ? "Victory"
+          : "Defeat";
     const resultSub = isSelfBattle
       ? "Mirror match"
       : isDraw
         ? "Evenly matched"
-        : isWin
-          ? "Attacker takes the W"
-          : "Defender holds the line";
-
-    const a = battle.attackerUsername ?? attackerDeck.githubUsername;
-    const d = battle.defenderUsername ?? defenderDeck.githubUsername;
+        : isGuest
+          ? "Guest matchup"
+          : isWin
+            ? "Attacker takes the W"
+            : "Defender holds the line";
 
     return (
       <div

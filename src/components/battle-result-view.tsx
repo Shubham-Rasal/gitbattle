@@ -63,14 +63,19 @@ function hitSoundForLog(log: BattleRoundLog): BattleHitSound {
 export function BattleResultView({
   outcome,
   onNewBattle,
+  spectator = false,
 }: {
   outcome: BattleOutcome;
   onNewBattle: () => void;
+  /** Neutral copy (guest matchup — neither side is “you”). */
+  spectator?: boolean;
 }) {
   const { battle, attackerDeck, defenderDeck } = outcome;
   const isWin = battle.result === "win";
   const isDraw = battle.result === "draw";
   const isSelfBattle = attackerDeck.id === defenderDeck.id;
+  const att = battle.attackerUsername ?? attackerDeck.githubUsername;
+  const def = battle.defenderUsername ?? defenderDeck.githubUsername;
 
   const turnGroups = useMemo(() => groupLogsByEngineTurn(battle.roundLogs), [battle.roundLogs]);
   const lastIdx = Math.max(0, turnGroups.length - 1);
@@ -187,6 +192,20 @@ export function BattleResultView({
     const loserRepo = ko.defenderCard;
     const winnerRepo = ko.attackerCard;
     const loserOnOpponentSide = defenderDeck.cards.some((c) => c.repoName === loserRepo);
+    if (spectator && !isSelfBattle) {
+      if (loserOnOpponentSide) {
+        return {
+          kind: "ko" as const,
+          tone: "neutral" as const,
+          message: `${att} wins this exchange — ${winnerRepo} knocks out ${loserRepo}.`,
+        };
+      }
+      return {
+        kind: "ko" as const,
+        tone: "neutral" as const,
+        message: `${def} wins this exchange — ${winnerRepo} knocks out ${loserRepo}.`,
+      };
+    }
     if (isSelfBattle) {
       const sideLost = loserOnOpponentSide ? "Side B" : "Side A";
       return {
@@ -207,7 +226,7 @@ export function BattleResultView({
       tone: "bad" as const,
       message: `You lose this exchange — your ${loserRepo} is knocked out.`,
     };
-  }, [currentLogsFull, displayHits, defenderDeck.cards, isSelfBattle]);
+  }, [currentLogsFull, displayHits, defenderDeck.cards, isSelfBattle, spectator, att, def]);
 
   return (
     <div className={`space-y-6 ${reduceMotion ? "" : "animate-battle-view-in"}`}>
@@ -224,16 +243,26 @@ export function BattleResultView({
           }`}
         >
           <div className={`text-xl font-black sm:text-3xl ${isWin ? "text-emerald-400" : isDraw ? "text-amber-400" : "text-red-400"}`}>
-            {isWin ? "Victory" : isDraw ? "Draw" : "Defeat"}
+            {spectator
+              ? isDraw
+                ? "Draw"
+                : isWin
+                  ? `${att} wins`
+                  : `${def} wins`
+              : isWin
+                ? "Victory"
+                : isDraw
+                  ? "Draw"
+                  : "Defeat"}
           </div>
           <p className="mt-1 text-balance text-xs text-slate-300 sm:text-sm">
             <a
-              href={`https://github.com/${battle.attackerUsername}`}
+              href={`https://github.com/${att}`}
               target="_blank"
               rel="noopener noreferrer"
               className="font-bold text-white underline decoration-white/20 underline-offset-2 hover:text-amber-200"
             >
-              @{battle.attackerUsername}
+              @{att}
             </a>{" "}
             {isSelfBattle ? (
               <span className="font-bold text-violet-400">vs self</span>
@@ -241,12 +270,12 @@ export function BattleResultView({
               <>
                 vs{" "}
                 <a
-                  href={`https://github.com/${battle.defenderUsername}`}
+                  href={`https://github.com/${def}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-bold text-white underline decoration-white/20 underline-offset-2 hover:text-amber-200"
                 >
-                  @{battle.defenderUsername}
+                  @{def}
                 </a>
               </>
             )}
@@ -360,7 +389,7 @@ export function BattleResultView({
                 className={showClashMotion ? "animate-battle-lunge-left" : undefined}
               >
                 <p className="mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
-                  {isSelfBattle ? "Side A (attacker)" : "Your card"}
+                  {spectator ? "Red corner (attacks first)" : isSelfBattle ? "Side A (attacker)" : "Your card"}
                 </p>
                 <img
                   src={faceoff.leftCard.ownerAvatar}
@@ -395,7 +424,7 @@ export function BattleResultView({
                 className={showClashMotion ? "animate-battle-recoil-right" : undefined}
               >
                 <p className="mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
-                  {isSelfBattle ? "Side B (defender)" : "Opponent"}
+                  {spectator ? "Blue corner" : isSelfBattle ? "Side B (defender)" : "Opponent"}
                 </p>
                 <img
                   src={faceoff.rightCard.ownerAvatar}
@@ -465,13 +494,25 @@ export function BattleResultView({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <DeckPreview
           deck={attackerDeck}
-          label={isSelfBattle ? "Attacker (Side A)" : "Your Deck"}
+          label={
+            spectator
+              ? `Red · @${att} · top starred repos`
+              : isSelfBattle
+                ? "Attacker (Side A)"
+                : "Your Deck"
+          }
           highlight={done && isWin}
           reducedMotion={reduceMotion}
         />
         <DeckPreview
           deck={defenderDeck}
-          label={isSelfBattle ? "Defender (Side B)" : "Opponent"}
+          label={
+            spectator
+              ? `Blue · @${def} · top starred repos`
+              : isSelfBattle
+                ? "Defender (Side B)"
+                : "Opponent"
+          }
           highlight={done && !isWin && !isDraw}
           reducedMotion={reduceMotion}
         />

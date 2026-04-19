@@ -90,6 +90,8 @@ export interface BattleSessionRecord {
   roundLogs: BattleRoundLog[];
   seed: number;
   createdAt: string;
+  /** Ephemeral battle (no DB row / share URL). */
+  isGuest?: boolean;
 }
 
 export interface BattleOutcome {

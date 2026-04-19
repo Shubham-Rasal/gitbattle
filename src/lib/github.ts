@@ -72,6 +72,34 @@ async function fetchRepoDetails(repo: Record<string, unknown>): Promise<RepoStat
   };
 }
 
+/**
+ * Top public repos by star count (forks skipped when enough alternatives exist).
+ * Used for guest “any two GitHub users” matchups.
+ */
+export async function fetchTopStarredRepos(username: string, limit = 3): Promise<RepoStats[]> {
+  const repos = await githubFetch(
+    `${GITHUB_API}/users/${encodeURIComponent(username)}/repos?per_page=100&sort=updated&direction=desc`,
+  );
+
+  if (!Array.isArray(repos) || repos.length === 0) {
+    throw new Error(`No public repos found for user "${username}"`);
+  }
+
+  const nonForks = [...repos].filter((r) => !(r as { fork?: boolean }).fork);
+  const pool = nonForks.length >= limit ? nonForks : [...repos];
+
+  const sorted = pool.sort(
+    (a, b) => (b.stargazers_count as number) - (a.stargazers_count as number),
+  );
+
+  const selected = sorted.slice(0, limit);
+  if (selected.length === 0) {
+    throw new Error(`No eligible repos for user "${username}"`);
+  }
+
+  return Promise.all(selected.map((r) => fetchRepoDetails(r as Record<string, unknown>)));
+}
+
 export async function fetchTopRepos(username: string, limit = 3): Promise<RepoStats[]> {
   // Fetch repos sorted by recency (most recently pushed first)
   const repos = await githubFetch(

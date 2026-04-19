@@ -35,6 +35,7 @@ export function BattleSharePanel({ outcome, variant = "inline" }: BattleSharePan
   const [notice, setNotice] = useState<string | null>(null);
   const battleId = outcome.battle.id.trim();
   const sharePath = `/share/battle/${battleId}`;
+  const persistedShare = outcome.battle.isGuest !== true;
 
   const flash = useCallback((msg: string) => {
     setNotice(msg);
@@ -64,13 +65,16 @@ export function BattleSharePanel({ outcome, variant = "inline" }: BattleSharePan
       typeof window !== "undefined"
         ? new URL(sharePath, window.location.origin).href
         : sharePath;
+    const text = persistedShare
+      ? formatBattleSummaryForClipboard(outcome, pageUrl)
+      : [...formatBattleSummaryLines(outcome), "", "Guest matchup (not saved — no share URL)."].join("\n");
     try {
-      await navigator.clipboard.writeText(formatBattleSummaryForClipboard(outcome, pageUrl));
+      await navigator.clipboard.writeText(text);
       flash("Summary copied");
     } catch {
       flash("Could not copy");
     }
-  }, [outcome, flash, sharePath]);
+  }, [outcome, flash, sharePath, persistedShare]);
 
   const downloadPng = useCallback(async () => {
     const node = cardRef.current;
@@ -143,11 +147,16 @@ export function BattleSharePanel({ outcome, variant = "inline" }: BattleSharePan
         <div className="mb-4 text-center sm:text-left">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-200/80">Share</p>
           <h3 className="mt-1 text-lg font-black text-white">Battle card</h3>
-          <p className="mt-1 text-xs text-slate-500">One image, link, or text blurb for feeds and DMs.</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {persistedShare
+              ? "One image, link, or text blurb for feeds and DMs."
+              : "Save a PNG or copy the summary — guest matchups are not stored, so there is no share URL."}
+          </p>
         </div>
       )}
 
       <div className="flex w-full max-w-lg flex-wrap justify-center gap-2">
+        {persistedShare ? (
         <button
           type="button"
           onClick={() => void copyLink()}
@@ -155,6 +164,7 @@ export function BattleSharePanel({ outcome, variant = "inline" }: BattleSharePan
         >
           Copy link
         </button>
+        ) : null}
         <button
           type="button"
           onClick={() => void copySummary()}
@@ -162,6 +172,7 @@ export function BattleSharePanel({ outcome, variant = "inline" }: BattleSharePan
         >
           Copy text
         </button>
+        {persistedShare ? (
         <button
           type="button"
           onClick={() => void tryNativeShare()}
@@ -169,6 +180,7 @@ export function BattleSharePanel({ outcome, variant = "inline" }: BattleSharePan
         >
           Share…
         </button>
+        ) : null}
         <button
           type="button"
           onClick={() => void downloadPng()}
@@ -176,7 +188,7 @@ export function BattleSharePanel({ outcome, variant = "inline" }: BattleSharePan
         >
           Save PNG
         </button>
-        {!isPage ? (
+        {!isPage && persistedShare ? (
           <Link
             href={sharePath}
             target="_blank"
