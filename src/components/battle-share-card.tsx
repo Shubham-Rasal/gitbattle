@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef } from "react";
+import { githubAvatarProxyUrl } from "@/lib/github-avatar";
 import type { BattleOutcome } from "@/types/game";
 
 export const BATTLE_SHARE_EXPORT_WIDTH_PX = 440;
@@ -71,11 +72,10 @@ export const BattleShareCard = forwardRef<HTMLDivElement, BattleShareCardProps>(
           <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             <div className="min-w-0 text-center">
               <img
-                src={`https://github.com/${a}.png?size=128`}
+                src={githubAvatarProxyUrl(a, 128)}
                 alt=""
                 width={72}
                 height={72}
-                crossOrigin="anonymous"
                 className="mx-auto h-[4.5rem] w-[4.5rem] rounded-full border-2 border-amber-300/35 object-cover shadow-[0_0_20px_-4px_rgba(251,191,36,0.4)]"
               />
               <p className="mt-2 truncate text-xs font-black text-white">@{a}</p>
@@ -90,11 +90,10 @@ export const BattleShareCard = forwardRef<HTMLDivElement, BattleShareCardProps>(
 
             <div className="min-w-0 text-center">
               <img
-                src={`https://github.com/${d}.png?size=128`}
+                src={githubAvatarProxyUrl(d, 128)}
                 alt=""
                 width={72}
                 height={72}
-                crossOrigin="anonymous"
                 className="mx-auto h-[4.5rem] w-[4.5rem] rounded-full border-2 border-sky-400/35 object-cover shadow-[0_0_20px_-4px_rgba(56,189,248,0.35)]"
               />
               <p className="mt-2 truncate text-xs font-black text-white">@{d}</p>
