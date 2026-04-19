@@ -106,8 +106,9 @@ export function GuestMatchupPanel() {
         </button>
 
         <p className="mt-4 text-center text-[11px] leading-relaxed text-slate-500 sm:text-left">
-          Uses the public GitHub API. Rate limits apply without a server token. Sign in to save decks and record ranked
-          battles on the leaderboard.
+          Uses the public GitHub API. Rate limits apply without a server token. Matchups are saved to the arena when the
+          server has a Supabase service role key — wins and losses count on the leaderboard by GitHub username. Sign in
+          to build saved decks and battle from My Decks.
         </p>
       </div>
     </div>

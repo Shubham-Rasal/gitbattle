@@ -65,6 +65,7 @@ export async function listRecentPublicDecks(
     .from("gxd_decks")
     .select("*")
     .eq("is_public", true)
+    .not("owner_id", "is", null)
     .order("created_at", { ascending: false })
     .limit(safeLimit);
 
@@ -113,6 +114,7 @@ export async function pickRandomOpponentDeck(
     .from("gxd_decks")
     .select("id", { count: "exact", head: true })
     .eq("is_public", true)
+    .not("owner_id", "is", null)
     .neq("owner_id", excludeUserId);
 
   if (countErr || !count || count === 0) return null;
@@ -124,6 +126,7 @@ export async function pickRandomOpponentDeck(
     .from("gxd_decks")
     .select("*")
     .eq("is_public", true)
+    .not("owner_id", "is", null)
     .neq("owner_id", excludeUserId)
     .range(offset, offset)
     .single();

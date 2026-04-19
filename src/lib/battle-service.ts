@@ -203,7 +203,57 @@ function guestDeckName(username: string, cards: PokemonCard[]): string {
 }
 
 /**
- * Simulated battle from each user’s top 3 starred public repos (no sign-in, not persisted).
+ * Insert guest matchup decks + battle (service role). Updates leaderboard via gxd_leaderboard view.
+ */
+export async function persistGuestBattle(outcome: BattleOutcome): Promise<void> {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+  }
+
+  const admin = createServiceClient();
+  const { battle, attackerDeck, defenderDeck } = outcome;
+
+  const { error: deckAErr } = await admin.from("gxd_decks").insert({
+    id: attackerDeck.id,
+    owner_id: null,
+    github_username: attackerDeck.githubUsername,
+    name: attackerDeck.name,
+    cards: attackerDeck.cards,
+    is_public: true,
+  });
+  if (deckAErr) throw new Error(`Failed to save guest deck: ${deckAErr.message}`);
+
+  const { error: deckBErr } = await admin.from("gxd_decks").insert({
+    id: defenderDeck.id,
+    owner_id: null,
+    github_username: defenderDeck.githubUsername,
+    name: defenderDeck.name,
+    cards: defenderDeck.cards,
+    is_public: true,
+  });
+  if (deckBErr) throw new Error(`Failed to save guest deck: ${deckBErr.message}`);
+
+  const { error: battleErr } = await admin.from("gxd_battle_sessions").insert({
+    id: battle.id,
+    attacker_user_id: null,
+    defender_user_id: null,
+    attacker_deck_id: attackerDeck.id,
+    defender_deck_id: defenderDeck.id,
+    attacker_username: battle.attackerUsername,
+    defender_username: battle.defenderUsername,
+    winner_user_id: null,
+    winner_deck_id: battle.winnerDeckId,
+    result: battle.result,
+    round_count: battle.roundCount,
+    round_logs: battle.roundLogs,
+    seed: battle.seed,
+  });
+  if (battleErr) throw new Error(`Failed to save guest battle: ${battleErr.message}`);
+}
+
+/**
+ * Simulated battle from each user’s top 3 starred public repos (no sign-in).
+ * Persisted when SUPABASE_SERVICE_ROLE_KEY is set (leaderboard + share URL).
  */
 export async function runGuestGithubBattle(
   attackerUsername: string,
@@ -227,23 +277,20 @@ export async function runGuestGithubBattle(
   const seed = Date.now();
   const engine = runBattle(atkCards, defCards, seed);
   const now = new Date().toISOString();
-  const battleId = `guest-${randomUUID()}`;
-  const atkDeckId = `guest-deck-${randomUUID()}`;
-  const defDeckId = `guest-deck-${randomUUID()}`;
+  const battleId = randomUUID();
+  const atkDeckId = randomUUID();
+  const defDeckId = randomUUID();
 
-  let winnerUserId: string | null = null;
   let winnerDeckId: string | null = null;
   if (engine.winnerSide === "attacker") {
-    winnerUserId = "guest-attacker";
     winnerDeckId = atkDeckId;
   } else if (engine.winnerSide === "defender") {
-    winnerUserId = "guest-defender";
     winnerDeckId = defDeckId;
   }
 
   const attackerDeck: DeckSummary = {
     id: atkDeckId,
-    ownerId: "guest",
+    ownerId: null,
     githubUsername: a,
     name: guestDeckName(a, atkCards),
     cards: atkCards,
@@ -254,7 +301,7 @@ export async function runGuestGithubBattle(
 
   const defenderDeck: DeckSummary = {
     id: defDeckId,
-    ownerId: "guest",
+    ownerId: null,
     githubUsername: d,
     name: guestDeckName(d, defCards),
     cards: defCards,
@@ -263,15 +310,15 @@ export async function runGuestGithubBattle(
     updatedAt: now,
   };
 
-  const battle: BattleSessionRecord = {
+  let battle: BattleSessionRecord = {
     id: battleId,
-    attackerUserId: "guest-attacker",
-    defenderUserId: "guest-defender",
+    attackerUserId: null,
+    defenderUserId: null,
     attackerDeckId: atkDeckId,
     defenderDeckId: defDeckId,
     attackerUsername: a,
     defenderUsername: d,
-    winnerUserId,
+    winnerUserId: null,
     winnerDeckId,
     result: engine.result,
     roundCount: engine.roundCount,
@@ -280,6 +327,15 @@ export async function runGuestGithubBattle(
     createdAt: now,
     isGuest: true,
   };
+
+  const outcome: BattleOutcome = { battle, attackerDeck, defenderDeck };
+
+  try {
+    await persistGuestBattle(outcome);
+    battle = { ...battle, isGuest: false };
+  } catch {
+    /* No service role or DB not migrated — still return simulated outcome */
+  }
 
   return { battle, attackerDeck, defenderDeck };
 }

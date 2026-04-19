@@ -10,7 +10,7 @@ export interface DeckPayload {
 
 export interface DeckRow {
   id: string;
-  owner_id: string;
+  owner_id: string | null;
   github_username: string;
   name: string;
   cards: PokemonCard[];
@@ -21,7 +21,7 @@ export interface DeckRow {
 
 export interface DeckSummary {
   id: string;
-  ownerId: string;
+  ownerId: string | null;
   githubUsername: string;
   name: string;
   cards: PokemonCard[];
@@ -60,7 +60,7 @@ export type BattleResult = "win" | "lose" | "draw";
 
 export interface BattleSessionRow {
   id: string;
-  attacker_user_id: string;
+  attacker_user_id: string | null;
   defender_user_id: string | null;
   attacker_deck_id: string;
   defender_deck_id: string;
@@ -77,7 +77,7 @@ export interface BattleSessionRow {
 
 export interface BattleSessionRecord {
   id: string;
-  attackerUserId: string;
+  attackerUserId: string | null;
   defenderUserId: string | null;
   attackerDeckId: string;
   defenderDeckId: string;
@@ -90,7 +90,7 @@ export interface BattleSessionRecord {
   roundLogs: BattleRoundLog[];
   seed: number;
   createdAt: string;
-  /** Ephemeral battle (no DB row / share URL). */
+  /** True when the fight was not stored (e.g. missing service role). */
   isGuest?: boolean;
 }
 

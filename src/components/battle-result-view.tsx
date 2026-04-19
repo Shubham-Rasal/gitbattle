@@ -12,6 +12,7 @@ import {
   type BattleHitSound,
 } from "@/lib/battle-sounds";
 import { BattleSharePanel } from "@/components/battle-share-panel";
+import { githubAvatarProxyUrl, githubProfileUrl } from "@/lib/github-avatar";
 
 const TIMING_MS = {
   intro: 600,
@@ -391,15 +392,35 @@ export function BattleResultView({
                 <p className="mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
                   {spectator ? "Red corner (attacks first)" : isSelfBattle ? "Side A (attacker)" : "Your card"}
                 </p>
-                <img
-                  src={faceoff.leftCard.ownerAvatar}
-                  alt=""
-                  className="mx-auto h-16 w-16 rounded-full border-2 border-white/20 object-cover sm:h-20 sm:w-20"
-                />
+                <a
+                  href={githubProfileUrl(faceoff.leftCard.ownerName)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mx-auto block w-fit rounded-full ring-2 ring-transparent transition-[box-shadow] hover:ring-amber-200/40 focus:outline-none focus-visible:ring-amber-200/60"
+                >
+                  <img
+                    src={githubAvatarProxyUrl(faceoff.leftCard.ownerName, 80)}
+                    alt=""
+                    width={80}
+                    height={80}
+                    className="mx-auto h-16 w-16 rounded-full border-2 border-white/20 object-cover sm:h-20 sm:w-20"
+                  />
+                </a>
                 <p className="mt-2 truncate text-base font-black text-white">{faceoff.leftCard.repoName}</p>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
                   {faceoff.leftCard.type} · HP {faceoff.leftCard.hp}
                 </p>
+                <a
+                  href={githubProfileUrl(faceoff.leftCard.ownerName)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[10px] font-bold text-slate-400 transition-colors hover:border-amber-200/35 hover:text-amber-200"
+                >
+                  @{faceoff.leftCard.ownerName}
+                  <span className="text-slate-600" aria-hidden>
+                    ↗
+                  </span>
+                </a>
               </div>
             </div>
 
@@ -426,15 +447,35 @@ export function BattleResultView({
                 <p className="mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
                   {spectator ? "Blue corner" : isSelfBattle ? "Side B (defender)" : "Opponent"}
                 </p>
-                <img
-                  src={faceoff.rightCard.ownerAvatar}
-                  alt=""
-                  className="mx-auto h-16 w-16 rounded-full border-2 border-white/20 object-cover sm:h-20 sm:w-20"
-                />
+                <a
+                  href={githubProfileUrl(faceoff.rightCard.ownerName)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mx-auto block w-fit rounded-full ring-2 ring-transparent transition-[box-shadow] hover:ring-sky-300/40 focus:outline-none focus-visible:ring-sky-300/60"
+                >
+                  <img
+                    src={githubAvatarProxyUrl(faceoff.rightCard.ownerName, 80)}
+                    alt=""
+                    width={80}
+                    height={80}
+                    className="mx-auto h-16 w-16 rounded-full border-2 border-white/20 object-cover sm:h-20 sm:w-20"
+                  />
+                </a>
                 <p className="mt-2 truncate text-base font-black text-white">{faceoff.rightCard.repoName}</p>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
                   {faceoff.rightCard.type} · HP {faceoff.rightCard.hp}
                 </p>
+                <a
+                  href={githubProfileUrl(faceoff.rightCard.ownerName)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[10px] font-bold text-slate-400 transition-colors hover:border-sky-300/35 hover:text-sky-200"
+                >
+                  @{faceoff.rightCard.ownerName}
+                  <span className="text-slate-600" aria-hidden>
+                    ↗
+                  </span>
+                </a>
               </div>
             </div>
           </div>
@@ -501,6 +542,7 @@ export function BattleResultView({
                 ? "Attacker (Side A)"
                 : "Your Deck"
           }
+          profileAccent="amber"
           highlight={done && isWin}
           reducedMotion={reduceMotion}
         />
@@ -513,6 +555,7 @@ export function BattleResultView({
                 ? "Defender (Side B)"
                 : "Opponent"
           }
+          profileAccent="sky"
           highlight={done && !isWin && !isDraw}
           reducedMotion={reduceMotion}
         />
@@ -552,14 +595,21 @@ export function BattleResultView({
 function DeckPreview({
   deck,
   label,
+  profileAccent,
   highlight,
   reducedMotion,
 }: {
   deck: DeckSummary;
   label: string;
+  profileAccent: "amber" | "sky";
   highlight: boolean;
   reducedMotion: boolean;
 }) {
+  const profileHover =
+    profileAccent === "amber"
+      ? "hover:border-amber-200/35 hover:text-amber-200"
+      : "hover:border-sky-300/35 hover:text-sky-200";
+
   return (
     <div
       className={`rounded-xl border p-3 transition-[border-color,box-shadow] duration-500 sm:p-4 ${
@@ -569,9 +619,29 @@ function DeckPreview({
       }`}
     >
       <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 sm:text-xs">{label}</p>
-      <p className="mb-3 text-xs font-bold text-white sm:text-sm">
-        @{deck.githubUsername} &middot; {deck.name}
-      </p>
+      <a
+        href={githubProfileUrl(deck.githubUsername)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`mb-3 flex items-center gap-3 rounded-xl border border-white/10 bg-black/40 p-2.5 text-left transition-colors ${profileHover}`}
+      >
+        <img
+          src={githubAvatarProxyUrl(deck.githubUsername, 72)}
+          alt=""
+          width={36}
+          height={36}
+          className="h-9 w-9 shrink-0 rounded-full border border-white/15 object-cover"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">GitHub profile</p>
+          <p className="truncate text-sm font-bold text-white">@{deck.githubUsername}</p>
+          <p className="truncate text-[10px] text-slate-500">{githubProfileUrl(deck.githubUsername)}</p>
+        </div>
+        <span className="shrink-0 text-xs text-slate-600" aria-hidden>
+          ↗
+        </span>
+      </a>
+      <p className="mb-3 text-xs font-bold text-white sm:text-sm">{deck.name}</p>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {deck.cards.map((card, i) => (
           <div

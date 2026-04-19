@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef } from "react";
-import { githubAvatarProxyUrl } from "@/lib/github-avatar";
+import { githubAvatarProxyUrl, githubProfileUrl } from "@/lib/github-avatar";
 import type { BattleOutcome } from "@/types/game";
 
 export const BATTLE_SHARE_EXPORT_WIDTH_PX = 440;
@@ -71,15 +71,37 @@ export const BattleShareCard = forwardRef<HTMLDivElement, BattleShareCardProps>(
 
           <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             <div className="min-w-0 text-center">
-              <img
-                src={githubAvatarProxyUrl(a, 128)}
-                alt=""
-                width={72}
-                height={72}
-                className="mx-auto h-[4.5rem] w-[4.5rem] rounded-full border-2 border-amber-300/35 object-cover shadow-[0_0_20px_-4px_rgba(251,191,36,0.4)]"
-              />
-              <p className="mt-2 truncate text-xs font-black text-white">@{a}</p>
+              <a
+                href={githubProfileUrl(a)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group mx-auto block w-fit rounded-full"
+              >
+                <img
+                  src={githubAvatarProxyUrl(a, 128)}
+                  alt=""
+                  width={72}
+                  height={72}
+                  className="mx-auto h-[4.5rem] w-[4.5rem] rounded-full border-2 border-amber-300/35 object-cover shadow-[0_0_20px_-4px_rgba(251,191,36,0.4)] transition-opacity group-hover:opacity-95"
+                />
+              </a>
+              <a
+                href={githubProfileUrl(a)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 block truncate text-xs font-black text-white underline decoration-white/20 underline-offset-2 transition-colors hover:text-amber-200 hover:decoration-amber-200/40"
+              >
+                @{a}
+              </a>
               <p className="mt-0.5 truncate text-[10px] font-bold text-slate-500">{attackerDeck.name}</p>
+              <a
+                href={githubProfileUrl(a)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1.5 block truncate text-[9px] font-semibold text-slate-600 transition-colors hover:text-slate-400"
+              >
+                {githubProfileUrl(a).replace(/^https:\/\//, "")}
+              </a>
             </div>
 
             <div className="flex flex-col items-center px-1">
@@ -89,15 +111,37 @@ export const BattleShareCard = forwardRef<HTMLDivElement, BattleShareCardProps>(
             </div>
 
             <div className="min-w-0 text-center">
-              <img
-                src={githubAvatarProxyUrl(d, 128)}
-                alt=""
-                width={72}
-                height={72}
-                className="mx-auto h-[4.5rem] w-[4.5rem] rounded-full border-2 border-sky-400/35 object-cover shadow-[0_0_20px_-4px_rgba(56,189,248,0.35)]"
-              />
-              <p className="mt-2 truncate text-xs font-black text-white">@{d}</p>
+              <a
+                href={githubProfileUrl(d)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group mx-auto block w-fit rounded-full"
+              >
+                <img
+                  src={githubAvatarProxyUrl(d, 128)}
+                  alt=""
+                  width={72}
+                  height={72}
+                  className="mx-auto h-[4.5rem] w-[4.5rem] rounded-full border-2 border-sky-400/35 object-cover shadow-[0_0_20px_-4px_rgba(56,189,248,0.35)] transition-opacity group-hover:opacity-95"
+                />
+              </a>
+              <a
+                href={githubProfileUrl(d)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 block truncate text-xs font-black text-white underline decoration-white/20 underline-offset-2 transition-colors hover:text-sky-200 hover:decoration-sky-200/40"
+              >
+                @{d}
+              </a>
               <p className="mt-0.5 truncate text-[10px] font-bold text-slate-500">{defenderDeck.name}</p>
+              <a
+                href={githubProfileUrl(d)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1.5 block truncate text-[9px] font-semibold text-slate-600 transition-colors hover:text-slate-400"
+              >
+                {githubProfileUrl(d).replace(/^https:\/\//, "")}
+              </a>
             </div>
           </div>
 

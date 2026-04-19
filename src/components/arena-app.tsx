@@ -890,7 +890,7 @@ export default function ArenaApp() {
 
                       return (
                         <tr
-                          key={entry.userId}
+                          key={entry.githubUsername}
                           className={`border-b border-white/5 transition-colors hover:bg-white/5 ${rank <= 3 ? "bg-white/[0.02]" : ""}`}
                         >
                           <td className={`px-2 py-3 font-black sm:px-4 sm:py-4 ${medalColor}`}>

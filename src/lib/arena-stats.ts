@@ -1,10 +1,20 @@
 /** Minimal battle row for streak computation (chronological order). */
 export type BattleStreakRow = {
-  attacker_user_id: string;
-  defender_user_id: string | null;
+  attackerKey: string;
+  defenderKey: string;
   result: "win" | "lose" | "draw";
   created_at: string;
 };
+
+export function battleParticipantKey(
+  userId: string | null | undefined,
+  githubUsername: string | null | undefined,
+): string | null {
+  if (userId) return `uid:${userId}`;
+  const g = githubUsername?.trim();
+  if (g) return `gh:${g.toLowerCase()}`;
+  return null;
+}
 
 /**
  * Longest consecutive wins for any user, in timeline order.
@@ -19,24 +29,22 @@ export function computeMaxWinStreak(battles: BattleStreakRow[]): number {
   let globalMax = 0;
 
   for (const row of sorted) {
-    const a = row.attacker_user_id;
-    const d = row.defender_user_id;
+    const a = row.attackerKey;
+    const d = row.defenderKey;
 
     if (row.result === "win") {
       const na = (current.get(a) ?? 0) + 1;
       current.set(a, na);
       globalMax = Math.max(globalMax, na);
-      if (d) current.set(d, 0);
+      current.set(d, 0);
     } else if (row.result === "lose") {
-      if (d) {
-        const nd = (current.get(d) ?? 0) + 1;
-        current.set(d, nd);
-        globalMax = Math.max(globalMax, nd);
-      }
+      const nd = (current.get(d) ?? 0) + 1;
+      current.set(d, nd);
+      globalMax = Math.max(globalMax, nd);
       current.set(a, 0);
     } else {
       current.set(a, 0);
-      if (d) current.set(d, 0);
+      current.set(d, 0);
     }
   }
 
