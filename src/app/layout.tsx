@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import { SOURCE_REPO_ISSUES_URL, SOURCE_REPO_URL } from "@/lib/site";
+import { Providers } from "./providers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,7 +38,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full min-h-[100dvh] flex-col pb-[env(safe-area-inset-bottom,0px)]">
-        {children}
+        <Providers>{children}</Providers>
         <Analytics />
         <footer className="mt-auto flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-white/10 bg-black/20 px-4 py-4 text-[11px] text-slate-500 backdrop-blur-sm">
           <a
