@@ -2,18 +2,41 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { BattleResultView } from "@/components/battle-result-view";
 import CreateLandingHero from "@/components/create-landing-hero";
 import PokemonCardComponent from "@/components/pokemon-card";
 import SiteHeader, { tabFromPathname, type AppTab } from "@/components/site-header";
 import Spinner from "@/components/spinner";
 import { useAuth } from "@/contexts/auth-context";
-import { PokemonCard, RepoStats, type PokemonType } from "@/types/card";
-import { DeckSummary, BattleOutcome, LeaderboardEntry, BattleRoundLog } from "@/types/game";
-import { TYPE_COLORS } from "@/lib/type-colors";
+import { PokemonCard, RepoStats } from "@/types/card";
+import { DeckSummary, BattleOutcome, LeaderboardEntry } from "@/types/game";
 
 /* ── Flow ─────────────────────────────────────────── */
 
 type StepState = "input" | "select" | "cards";
+
+/** Stable accent per deck (inactive pill background). */
+const DECK_BADGE_BG = [
+  "oklch(0.38 0.12 150)",
+  "oklch(0.4 0.14 280)",
+  "oklch(0.42 0.14 35)",
+  "oklch(0.38 0.12 250)",
+  "oklch(0.4 0.13 320)",
+  "oklch(0.4 0.11 200)",
+  "oklch(0.42 0.12 85)",
+  "oklch(0.37 0.12 15)",
+  "oklch(0.39 0.1 230)",
+  "oklch(0.41 0.11 305)",
+] as const;
+
+function deckBadgeBackground(deckId: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < deckId.length; i++) {
+    h ^= deckId.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return DECK_BADGE_BG[(h >>> 0) % DECK_BADGE_BG.length];
+}
 
 /* ── Tiny components ──────────────────────────────── */
 
@@ -623,6 +646,7 @@ export default function ArenaApp() {
                   >
                     {myDecks.map((deck) => {
                       const isActive = deck.id === selectedDeckId;
+                      const idleBg = deckBadgeBackground(deck.id);
                       return (
                         <button
                           key={deck.id}
@@ -631,10 +655,11 @@ export default function ArenaApp() {
                           aria-selected={isActive}
                           title={deck.name}
                           onClick={() => setSelectedDeckId(deck.id)}
+                          style={isActive ? undefined : { backgroundColor: idleBg }}
                           className={`max-w-[min(100%,18rem)] truncate rounded-full px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.1em] transition-all duration-200 sm:px-5 sm:text-[11px] sm:tracking-[0.12em] ${
                             isActive
                               ? "bg-neutral-950 text-white shadow-[0_0_0_2px_rgba(255,255,255,0.92),0_0_0_5px_oklch(0.82_0.12_195_/_0.55)]"
-                              : "bg-[#1a4d32] text-white hover:bg-[#236b4a] active:scale-[0.98]"
+                              : "text-white hover:brightness-110 active:scale-[0.98]"
                           }`}
                         >
                           {deck.name}
@@ -909,313 +934,5 @@ export default function ArenaApp() {
         </div>
       )}
     </main>
-  );
-}
-
-/* ── Battle Result Component ──────────────────────── */
-
-function groupLogsByEngineTurn(logs: BattleRoundLog[]): BattleRoundLog[][] {
-  const map = new Map<number, BattleRoundLog[]>();
-  for (const log of logs) {
-    const arr = map.get(log.turn) ?? [];
-    arr.push(log);
-    map.set(log.turn, arr);
-  }
-  return [...map.keys()]
-    .sort((a, b) => a - b)
-    .map((k) => map.get(k)!);
-}
-
-function moveTypeStyle(moveType: string) {
-  return TYPE_COLORS[moveType as PokemonType] ?? TYPE_COLORS.normal;
-}
-
-function BattleResultView({ outcome, onNewBattle }: { outcome: BattleOutcome; onNewBattle: () => void }) {
-  const { battle, attackerDeck, defenderDeck } = outcome;
-  const isWin = battle.result === "win";
-  const isDraw = battle.result === "draw";
-  const isSelfBattle = attackerDeck.id === defenderDeck.id;
-
-  const turnGroups = useMemo(() => groupLogsByEngineTurn(battle.roundLogs), [battle.roundLogs]);
-  const lastIdx = Math.max(0, turnGroups.length - 1);
-  const [step, setStep] = useState(0);
-
-  useEffect(() => {
-    setStep(0);
-  }, [battle.id]);
-
-  useEffect(() => {
-    setStep((s) => Math.min(s, lastIdx));
-  }, [lastIdx]);
-  const safeStep = Math.min(step, lastIdx);
-  const currentLogs = turnGroups[safeStep] ?? [];
-  const firstLog = currentLogs[0];
-
-  const faceoff = useMemo(() => {
-    if (!firstLog) return null;
-    const pair = [firstLog.attackerCard, firstLog.defenderCard];
-    const leftCard = attackerDeck.cards.find((c) => pair.includes(c.repoName));
-    const rightCard = defenderDeck.cards.find((c) => pair.includes(c.repoName));
-    if (!leftCard || !rightCard) return null;
-    return { leftCard, rightCard };
-  }, [firstLog, attackerDeck.cards, defenderDeck.cards]);
-
-  const exchangeResult = useMemo(() => {
-    const ko = currentLogs.find((l) => l.status === "knockout");
-    if (!ko) {
-      return { kind: "ongoing" as const, message: "Both cards survive — next matchup." };
-    }
-    const loserRepo = ko.defenderCard;
-    const winnerRepo = ko.attackerCard;
-    const loserOnOpponentSide = defenderDeck.cards.some((c) => c.repoName === loserRepo);
-    if (isSelfBattle) {
-      const sideLost = loserOnOpponentSide ? "Side B" : "Side A";
-      return {
-        kind: "ko" as const,
-        tone: "neutral" as const,
-        message: `${sideLost} loses a fighter: ${loserRepo} is knocked out.`,
-      };
-    }
-    if (loserOnOpponentSide) {
-      return {
-        kind: "ko" as const,
-        tone: "good" as const,
-        message: `You win this exchange — ${winnerRepo} knocks out ${loserRepo}.`,
-      };
-    }
-    return {
-      kind: "ko" as const,
-      tone: "bad" as const,
-      message: `You lose this exchange — your ${loserRepo} is knocked out.`,
-    };
-  }, [currentLogs, defenderDeck.cards, isSelfBattle]);
-
-  return (
-    <div className="space-y-6">
-      <div
-        className={`rounded-xl border px-3 py-4 text-center sm:px-6 sm:py-5 ${
-          isWin
-            ? "border-emerald-500/40 bg-emerald-500/15"
-            : isDraw
-              ? "border-amber-500/40 bg-amber-500/15"
-              : "border-red-500/40 bg-red-500/15"
-        }`}
-      >
-        <div className={`text-xl font-black sm:text-3xl ${isWin ? "text-emerald-400" : isDraw ? "text-amber-400" : "text-red-400"}`}>
-          {isWin ? "Victory" : isDraw ? "Draw" : "Defeat"}
-        </div>
-        <p className="mt-1 text-balance text-xs text-slate-300 sm:text-sm">
-          <a
-            href={`https://github.com/${battle.attackerUsername}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-bold text-white underline decoration-white/20 underline-offset-2 hover:text-amber-200"
-          >
-            @{battle.attackerUsername}
-          </a>{" "}
-          {isSelfBattle ? (
-            <span className="font-bold text-violet-400">vs self</span>
-          ) : (
-            <>
-              vs{" "}
-              <a
-                href={`https://github.com/${battle.defenderUsername}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-bold text-white underline decoration-white/20 underline-offset-2 hover:text-amber-200"
-              >
-                @{battle.defenderUsername}
-              </a>
-            </>
-          )}
-          <span className="text-slate-500"> · {turnGroups.length} matchup{turnGroups.length !== 1 ? "s" : ""}</span>
-        </p>
-      </div>
-
-      {/* Step-by-step exchange replay */}
-      {turnGroups.length > 0 && faceoff ? (
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-4 sm:p-6">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Matchup</p>
-              <p className="text-lg font-black text-white">
-                {safeStep + 1} <span className="text-slate-500">/</span> {turnGroups.length}
-              </p>
-            </div>
-            <div className="flex w-full gap-2 sm:w-auto">
-              <button
-                type="button"
-                disabled={safeStep <= 0}
-                onClick={() => setStep((s) => Math.max(0, s - 1))}
-                className="min-h-10 flex-1 rounded-xl border border-white/15 bg-white/5 px-4 text-xs font-black text-white transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35 sm:flex-initial"
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                disabled={safeStep >= lastIdx}
-                onClick={() => setStep((s) => Math.min(lastIdx, s + 1))}
-                className="min-h-10 flex-1 rounded-xl border border-amber-200/35 bg-amber-200/15 px-4 text-xs font-black text-amber-100 transition-colors hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-35 sm:flex-initial"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-
-          <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-amber-300 to-orange-400 transition-all duration-300"
-              style={{ width: `${((safeStep + 1) / turnGroups.length) * 100}%` }}
-            />
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-3">
-            <div
-              className={`rounded-xl border p-4 text-center ${
-                isSelfBattle ? "border-violet-400/30 bg-violet-500/10" : "border-amber-200/25 bg-amber-200/5"
-              }`}
-            >
-              <p className="mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
-                {isSelfBattle ? "Side A (attacker)" : "Your card"}
-              </p>
-              <img
-                src={faceoff.leftCard.ownerAvatar}
-                alt=""
-                className="mx-auto h-16 w-16 rounded-full border-2 border-white/20 object-cover sm:h-20 sm:w-20"
-              />
-              <p className="mt-2 truncate text-base font-black text-white">{faceoff.leftCard.repoName}</p>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                {faceoff.leftCard.type} · HP {faceoff.leftCard.hp}
-              </p>
-            </div>
-
-            <div className="flex justify-center py-2 sm:py-0">
-              <span className="rounded-full border border-white/15 bg-black/50 px-4 py-2 text-sm font-black text-white/90">VS</span>
-            </div>
-
-            <div
-              className={`rounded-xl border p-4 text-center ${
-                isSelfBattle ? "border-sky-400/30 bg-sky-500/10" : "border-sky-300/25 bg-sky-500/5"
-              }`}
-            >
-              <p className="mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
-                {isSelfBattle ? "Side B (defender)" : "Opponent"}
-              </p>
-              <img
-                src={faceoff.rightCard.ownerAvatar}
-                alt=""
-                className="mx-auto h-16 w-16 rounded-full border-2 border-white/20 object-cover sm:h-20 sm:w-20"
-              />
-              <p className="mt-2 truncate text-base font-black text-white">{faceoff.rightCard.repoName}</p>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                {faceoff.rightCard.type} · HP {faceoff.rightCard.hp}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 space-y-2">
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">This exchange</p>
-            {currentLogs.map((log, i) => {
-              const t = moveTypeStyle(log.moveType);
-              return (
-                <div
-                  key={`${log.turn}-${i}`}
-                  className={`rounded-xl border px-3 py-2.5 text-sm sm:px-4 ${
-                    log.status === "knockout" ? "border-red-400/35 bg-red-500/10" : "border-white/10 bg-black/35"
-                  }`}
-                >
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="font-black text-amber-200">{log.attackerCard}</span>
-                    <span className="text-slate-500">→</span>
-                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-black uppercase text-white ${t.badge}`}>{log.move}</span>
-                    <span className="text-slate-500">→</span>
-                    <span className="font-bold text-sky-200">{log.defenderCard}</span>
-                    <span className="font-black text-white">{log.damage} dmg</span>
-                    {log.wasWeak ? <span className="text-xs font-bold text-rose-300">Super effective</span> : null}
-                    {log.wasResisted ? <span className="text-xs font-bold text-slate-400">Resisted</span> : null}
-                    {log.wasCrit ? <span className="text-xs font-bold text-yellow-300">Crit</span> : null}
-                  </div>
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    HP {log.defenderHpBefore} → {log.defenderHpAfter}
-                    {log.status === "knockout" ? <span className="ml-2 font-black text-red-300">KO</span> : null}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
-          <div
-            className={`mt-4 rounded-xl border px-4 py-3 text-center text-sm font-bold ${
-              exchangeResult.kind === "ko"
-                ? exchangeResult.tone === "good"
-                  ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                  : exchangeResult.tone === "bad"
-                    ? "border-red-400/35 bg-red-500/10 text-red-200"
-                    : "border-white/15 bg-white/5 text-slate-200"
-                : "border-white/10 bg-black/30 text-slate-400"
-            }`}
-          >
-            {exchangeResult.message}
-          </div>
-        </div>
-      ) : null}
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <DeckPreview deck={attackerDeck} label={isSelfBattle ? "Attacker (Side A)" : "Your Deck"} highlight={isWin} />
-        <DeckPreview deck={defenderDeck} label={isSelfBattle ? "Defender (Side B)" : "Opponent"} highlight={!isWin && !isDraw} />
-      </div>
-
-      <details className="overflow-hidden rounded-xl border border-white/10 bg-black/40">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-white/80 transition-colors hover:bg-white/5">
-          Full battle log ({battle.roundLogs.length} hits)
-        </summary>
-        <div className="max-h-80 space-y-1 overflow-y-auto px-4 pb-4">
-          {battle.roundLogs.map((log: BattleRoundLog, i: number) => (
-            <div key={i} className={`rounded px-2 py-1 text-xs ${log.status === "knockout" ? "bg-red-500/10 text-red-300" : "text-slate-400"}`}>
-              <span className="text-white/50">T{log.turn}</span>{" "}
-              <span className="font-bold text-amber-200">{log.attackerCard}</span> · {log.move} ·{" "}
-              <span className="text-sky-300">{log.defenderCard}</span> ({log.damage})
-              {log.status === "knockout" ? <span className="font-black text-red-400"> KO</span> : null}
-            </div>
-          ))}
-        </div>
-      </details>
-
-      <div className="flex justify-center px-1">
-        <button
-          type="button"
-          onClick={onNewBattle}
-          className="min-h-11 w-full max-w-xs rounded-xl bg-gradient-to-r from-amber-300 to-orange-400 px-6 py-3 text-sm font-black text-slate-900 transition-all active:scale-[0.98] cursor-pointer sm:w-auto sm:max-w-none sm:min-h-0"
-        >
-          Battle Again
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function DeckPreview({ deck, label, highlight }: { deck: DeckSummary; label: string; highlight: boolean }) {
-  return (
-    <div
-      className={`rounded-xl border p-3 sm:p-4 ${highlight ? "border-emerald-500/40 bg-emerald-500/5" : "border-white/10 bg-black/30"}`}
-    >
-      <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 sm:text-xs">{label}</p>
-      <p className="mb-3 text-xs font-bold text-white sm:text-sm">
-        @{deck.githubUsername} &middot; {deck.name}
-      </p>
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        {deck.cards.map((card) => (
-          <div
-            key={card.repoFullName}
-            className="rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-center sm:min-w-0 sm:flex-1"
-          >
-            <p className="truncate text-[10px] font-bold text-white">{card.repoName}</p>
-            <p className="text-[10px] text-slate-500">
-              {card.type} &middot; HP {card.hp}
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
