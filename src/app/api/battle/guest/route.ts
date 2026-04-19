@@ -14,8 +14,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "Both GitHub usernames are required" }, { status: 400 });
     }
 
-    const outcome = await runGuestGithubBattle(attacker, defender);
-    return Response.json(outcome, { status: 201 });
+    const { outcome, persisted } = await runGuestGithubBattle(attacker, defender);
+    return Response.json({ ...outcome, persisted }, { status: 201 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Battle failed";
     return Response.json({ error: msg }, { status: 400 });

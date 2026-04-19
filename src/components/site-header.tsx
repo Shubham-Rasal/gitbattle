@@ -4,19 +4,21 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { usePathname, useRouter } from "next/navigation";
 
-export type AppTab = "decks" | "matchup" | "leaderboard";
+export type AppTab = "home" | "decks" | "matchup" | "leaderboard";
 
 const NAV: { id: AppTab; label: string; shortLabel: string; authRequired: boolean; href: string }[] = [
+  { id: "home", label: "Home", shortLabel: "Home", authRequired: false, href: "/" },
   { id: "decks", label: "My Decks", shortLabel: "Decks", authRequired: true, href: "/decks" },
   { id: "matchup", label: "Matchup", shortLabel: "Vs", authRequired: false, href: "/matchup" },
   { id: "leaderboard", label: "Leaderboard", shortLabel: "Ranks", authRequired: false, href: "/leaderboard" },
 ];
 
 export function tabFromPathname(pathname: string | null): AppTab {
-  if (!pathname) return "leaderboard";
+  if (!pathname || pathname === "/") return "home";
   if (pathname.startsWith("/decks")) return "decks";
   if (pathname.startsWith("/matchup")) return "matchup";
-  return "leaderboard";
+  if (pathname.startsWith("/leaderboard")) return "leaderboard";
+  return "home";
 }
 
 type SiteHeaderProps = {
@@ -117,11 +119,10 @@ export default function SiteHeader({
             type="button"
             onClick={() => {
               onBrandClick?.();
-              const dest = user ? "/decks" : "/leaderboard";
-              if (pathname === dest) {
+              if (pathname === "/") {
                 window.scrollTo({ top: 0, behavior: "smooth" });
               } else {
-                router.push(dest);
+                router.push("/");
               }
             }}
             className="flex shrink-0 items-center gap-1.5 rounded-lg text-left transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50 sm:gap-2"
@@ -172,11 +173,10 @@ export default function SiteHeader({
               type="button"
               onClick={() => {
                 onBrandClick?.();
-                const dest = user ? "/decks" : "/leaderboard";
-                if (pathname === dest) {
+                if (pathname === "/") {
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 } else {
-                  router.push(dest);
+                  router.push("/");
                 }
               }}
               className="flex min-w-0 shrink-0 items-center gap-1.5 rounded-lg text-left transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50"

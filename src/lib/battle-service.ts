@@ -11,6 +11,7 @@ import {
   BattleSessionRecord,
   BattleOutcome,
   DeckSummary,
+  RecentBattleEntry,
 } from "@/types/game";
 
 const GH_USER_RE = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
@@ -128,6 +129,32 @@ export async function getLeaderboard(
     totalBattles: row.total_battles as number,
     winRate: Number(row.win_rate),
     lastPlayed: row.last_played as string | null,
+  }));
+}
+
+export async function getRecentBattles(
+  supabase: SupabaseClient,
+  limit = 25,
+): Promise<RecentBattleEntry[]> {
+  const safe = Math.max(1, Math.min(limit, 50));
+  const { data, error } = await supabase
+    .from("gxd_battle_sessions")
+    .select(
+      "id, attacker_username, defender_username, result, round_count, created_at, attacker_user_id, defender_user_id",
+    )
+    .order("created_at", { ascending: false })
+    .limit(safe);
+
+  if (error) throw new Error(`Failed to fetch recent battles: ${error.message}`);
+
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    id: row.id as string,
+    attackerUsername: (row.attacker_username as string) ?? null,
+    defenderUsername: (row.defender_username as string) ?? null,
+    result: row.result as RecentBattleEntry["result"],
+    roundCount: row.round_count as number,
+    createdAt: row.created_at as string,
+    isGuestMatchup: row.attacker_user_id == null && row.defender_user_id == null,
   }));
 }
 
@@ -251,6 +278,12 @@ export async function persistGuestBattle(outcome: BattleOutcome): Promise<void> 
   if (battleErr) throw new Error(`Failed to save guest battle: ${battleErr.message}`);
 }
 
+export type GuestGithubBattleResult = {
+  outcome: BattleOutcome;
+  /** False when the battle was only simulated (no service role or DB error). */
+  persisted: boolean;
+};
+
 /**
  * Simulated battle from each user’s top 3 starred public repos (no sign-in).
  * Persisted when SUPABASE_SERVICE_ROLE_KEY is set (leaderboard + share URL).
@@ -258,7 +291,7 @@ export async function persistGuestBattle(outcome: BattleOutcome): Promise<void> 
 export async function runGuestGithubBattle(
   attackerUsername: string,
   defenderUsername: string,
-): Promise<BattleOutcome> {
+): Promise<GuestGithubBattleResult> {
   const a = normalizeGithubUsername(attackerUsername);
   const d = normalizeGithubUsername(defenderUsername);
   if (!a || !d) throw new Error("Enter valid GitHub usernames");
@@ -328,14 +361,17 @@ export async function runGuestGithubBattle(
     isGuest: true,
   };
 
-  const outcome: BattleOutcome = { battle, attackerDeck, defenderDeck };
-
+  let persisted = false;
   try {
-    await persistGuestBattle(outcome);
+    await persistGuestBattle({ battle, attackerDeck, defenderDeck });
     battle = { ...battle, isGuest: false };
+    persisted = true;
   } catch {
     /* No service role or DB not migrated — still return simulated outcome */
   }
 
-  return { battle, attackerDeck, defenderDeck };
+  return {
+    outcome: { battle, attackerDeck, defenderDeck },
+    persisted,
+  };
 }

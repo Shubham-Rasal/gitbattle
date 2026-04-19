@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BattleResultView } from "@/components/battle-result-view";
 import CreateLandingHero from "@/components/create-landing-hero";
@@ -10,7 +11,14 @@ import { GuestMatchupPanel } from "@/components/guest-matchup-panel";
 import Spinner from "@/components/spinner";
 import { useAuth } from "@/contexts/auth-context";
 import { PokemonCard, RepoStats } from "@/types/card";
-import { DeckSummary, BattleOutcome, LeaderboardEntry } from "@/types/game";
+import {
+  DeckSummary,
+  BattleOutcome,
+  LeaderboardEntry,
+  RecentBattleEntry,
+  type BattleResult,
+} from "@/types/game";
+import { githubAvatarProxyUrl } from "@/lib/github-avatar";
 
 /* ── Flow ─────────────────────────────────────────── */
 
@@ -99,6 +107,12 @@ function StepIndicator({ step }: { step: StepState }) {
   );
 }
 
+function recentBattleWinnerLabel(result: BattleResult): string {
+  if (result === "draw") return "Draw";
+  if (result === "win") return "Red wins";
+  return "Blue wins";
+}
+
 /* ── Main ─────────────────────────────────────────── */
 
 export default function ArenaApp() {
@@ -134,6 +148,7 @@ export default function ArenaApp() {
   /* leaderboard */
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [lbLoading, setLbLoading] = useState(false);
+  const [recentBattles, setRecentBattles] = useState<RecentBattleEntry[]>([]);
   const [recentDecks, setRecentDecks] = useState<DeckSummary[]>([]);
   const [recentDecksLoading, setRecentDecksLoading] = useState(false);
 
@@ -143,7 +158,7 @@ export default function ArenaApp() {
     if (gh) setUsername(gh);
   }, [user]);
 
-  /* Only leave /decks when there is truly no session — avoids flashing to leaderboard if `user` lags behind Supabase during refresh. */
+  /* Only leave /decks when there is truly no session — send guests to home if `user` lags behind Supabase during refresh. */
   useEffect(() => {
     if (authLoading) return;
     if (!pathname.startsWith("/decks")) return;
@@ -153,7 +168,7 @@ export default function ArenaApp() {
     void (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (cancelled) return;
-      if (!session) router.replace("/leaderboard");
+      if (!session) router.replace("/");
     })();
 
     return () => {
@@ -165,7 +180,7 @@ export default function ArenaApp() {
     await ctxSignOut();
     setMyDecks([]);
     setBattleOutcome(null);
-    router.push("/leaderboard");
+    router.push("/");
   }
 
   /* ── Deck CRUD ──────────────────────────────────── */
@@ -381,6 +396,8 @@ export default function ArenaApp() {
         .then((r) => r.json())
         .then((data) => {
           if (Array.isArray(data.entries)) setLeaderboard(data.entries);
+          if (Array.isArray(data.recentBattles)) setRecentBattles(data.recentBattles);
+          else setRecentBattles([]);
         })
         .catch(() => {})
         .finally(() => setLbLoading(false));
@@ -814,6 +831,22 @@ export default function ArenaApp() {
         </div>
       )}
 
+      {/* ═══════════════ LANDING (/) ═══════════════ */}
+      {tab === "home" && (
+        <div className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-4 sm:px-6 sm:pb-6 lg:px-8">
+          <CreateLandingHero
+            isSignedIn={!!user}
+            githubUsername={githubUsername}
+            loading={loading}
+            onSignIn={signIn}
+            onBuildDeck={() => {
+              if (user) router.push("/decks");
+            }}
+            layout="full"
+          />
+        </div>
+      )}
+
       {/* ═══════════════ GUEST MATCHUP (no auth) ═══════════════ */}
       {tab === "matchup" && (
         <div className="relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -824,32 +857,24 @@ export default function ArenaApp() {
       {/* ═══════════════ LEADERBOARD TAB ═══════════════ */}
       {tab === "leaderboard" && (
         <div className="relative z-10 mx-auto w-full max-w-7xl px-0">
-          {!user && (
-            <div className="relative z-10 w-full pb-2 sm:pb-4">
-              <CreateLandingHero
-                isSignedIn={false}
-                loading={false}
-                onSignIn={signIn}
-                layout="full"
-              />
-            </div>
-          )}
-
           <div className="mx-auto w-full px-4 sm:px-6 lg:px-8">
-            {!user && (
-              <div
-                className="mb-10 mt-6 h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent sm:mb-12 sm:mt-8"
-                aria-hidden
-              />
-            )}
-            <h2
-              className={`text-center font-black tracking-tight text-white ${user ? "mb-4 text-xl sm:mb-6 sm:text-2xl" : "mb-2 text-2xl sm:mb-3 sm:text-3xl"}`}
-            >
+            <h2 className="mb-4 text-center text-xl font-black tracking-tight text-white sm:mb-6 sm:text-2xl">
               Leaderboard
             </h2>
             {!user ? (
-              <p className="mx-auto mb-10 max-w-md text-center text-sm leading-relaxed text-slate-500 sm:mb-12">
-                Live rankings from the arena. Sign in with GitHub to build a deck and claim a spot.
+              <p className="mx-auto mb-8 max-w-md text-center text-sm leading-relaxed text-slate-500 sm:mb-10">
+                Live rankings from the arena.{" "}
+                <Link href="/" className="font-semibold text-amber-200/90 underline decoration-amber-200/30 underline-offset-2 hover:text-amber-100">
+                  Home
+                </Link>{" "}
+                ·{" "}
+                <Link
+                  href="/matchup"
+                  className="font-semibold text-amber-200/90 underline decoration-amber-200/30 underline-offset-2 hover:text-amber-100"
+                >
+                  Try a matchup
+                </Link>{" "}
+                without signing in, or sign in to build a deck.
               </p>
             ) : null}
 
@@ -955,6 +980,96 @@ export default function ArenaApp() {
               </div>
             )}
           </section>
+
+            <section className="mb-8 sm:mb-10">
+              <h3 className="mb-4 text-sm font-black uppercase tracking-[0.14em] text-amber-200 sm:mb-5 sm:text-xs">
+                Recent battles
+              </h3>
+              <p className="mx-auto mb-4 max-w-2xl text-center text-xs leading-relaxed text-slate-500 sm:mb-5 sm:text-left">
+                Every saved fight has a shareable recap card — including guest matchups (no sign-in). Open a row to copy
+                the link or save a PNG.
+              </p>
+              {lbLoading ? (
+                <div className="flex justify-center py-8 text-white">
+                  <Spinner text="Loading battles..." />
+                </div>
+              ) : recentBattles.length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-400">No battles recorded yet. Run a matchup or sign in and battle from My Decks.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm [-webkit-overflow-scrolling:touch]">
+                  <table className="w-full min-w-[32rem] text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-white/10 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 sm:text-[11px] sm:tracking-[0.14em]">
+                        <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Matchup</th>
+                        <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Source</th>
+                        <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Result</th>
+                        <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Rounds</th>
+                        <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-4 sm:py-3">When</th>
+                        <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-4 sm:py-3">Share</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentBattles.map((row) => {
+                        const a = row.attackerUsername ?? "—";
+                        const d = row.defenderUsername ?? "—";
+                        return (
+                          <tr key={row.id} className="border-b border-white/5 transition-colors hover:bg-white/5">
+                            <td className="px-2 py-2.5 sm:px-4 sm:py-3">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <img
+                                  src={githubAvatarProxyUrl(a, 48)}
+                                  alt=""
+                                  className="h-8 w-8 shrink-0 rounded-full border border-white/10 bg-white/5"
+                                />
+                                <span className="text-slate-500" aria-hidden>
+                                  vs
+                                </span>
+                                <img
+                                  src={githubAvatarProxyUrl(d, 48)}
+                                  alt=""
+                                  className="h-8 w-8 shrink-0 rounded-full border border-white/10 bg-white/5"
+                                />
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-bold text-white">
+                                    @{a} vs @{d}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-2 py-2.5 sm:px-4 sm:py-3">
+                              <span
+                                className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${
+                                  row.isGuestMatchup
+                                    ? "border border-violet-400/35 bg-violet-500/15 text-violet-200"
+                                    : "border border-emerald-400/35 bg-emerald-500/15 text-emerald-200"
+                                }`}
+                              >
+                                {row.isGuestMatchup ? "Matchup" : "Arena"}
+                              </span>
+                            </td>
+                            <td className="px-2 py-2.5 text-xs font-bold text-slate-200 sm:px-4 sm:py-3">
+                              {recentBattleWinnerLabel(row.result)}
+                            </td>
+                            <td className="px-2 py-2.5 tabular-nums text-slate-400 sm:px-4 sm:py-3">{row.roundCount}</td>
+                            <td className="whitespace-nowrap px-2 py-2.5 text-right text-xs text-slate-500 sm:px-4 sm:py-3">
+                              {new Date(row.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="px-2 py-2.5 text-right sm:px-4 sm:py-3">
+                              <Link
+                                href={`/share/battle/${row.id}`}
+                                className="text-xs font-bold text-amber-200 underline decoration-amber-200/30 underline-offset-2 hover:text-amber-100"
+                              >
+                                Open recap
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
 
             <section className="pb-2">
               <h3 className="mb-4 text-sm font-black uppercase tracking-[0.14em] text-amber-200 sm:text-xs">

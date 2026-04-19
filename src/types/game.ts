@@ -113,6 +113,18 @@ export interface LeaderboardEntry {
   lastPlayed: string | null;
 }
 
+/** Row for “Recent battles” on the leaderboard (arena + guest matchups). */
+export interface RecentBattleEntry {
+  id: string;
+  attackerUsername: string | null;
+  defenderUsername: string | null;
+  result: BattleResult;
+  roundCount: number;
+  createdAt: string;
+  /** Both sides anonymous GitHub-only matchup (saved with service role). */
+  isGuestMatchup: boolean;
+}
+
 /** Public landing-page aggregates from `/api/stats`. */
 export interface PublicArenaStats {
   playerCount: number;

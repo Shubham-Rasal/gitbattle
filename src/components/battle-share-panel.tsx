@@ -131,7 +131,7 @@ export function BattleSharePanel({ outcome, variant = "inline" }: BattleSharePan
       {isPage ? (
         <header className="mb-8 flex w-full max-w-lg flex-col items-center gap-3 sm:flex-row sm:justify-between">
           <Link
-            href="/leaderboard"
+            href="/"
             className="text-sm font-black uppercase tracking-[0.14em] text-amber-200/90 underline decoration-amber-200/30 underline-offset-4 transition-colors hover:text-amber-100"
           >
             GitBattle

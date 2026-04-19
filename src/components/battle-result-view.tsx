@@ -65,11 +65,14 @@ export function BattleResultView({
   outcome,
   onNewBattle,
   spectator = false,
+  persistNotice,
 }: {
   outcome: BattleOutcome;
   onNewBattle: () => void;
   /** Neutral copy (guest matchup — neither side is “you”). */
   spectator?: boolean;
+  /** Shown when a guest matchup could not be saved (no share URL / leaderboard). */
+  persistNotice?: string;
 }) {
   const { battle, attackerDeck, defenderDeck } = outcome;
   const isWin = battle.result === "win";
@@ -231,6 +234,14 @@ export function BattleResultView({
 
   return (
     <div className={`space-y-6 ${reduceMotion ? "" : "animate-battle-view-in"}`}>
+      {persistNotice ? (
+        <div
+          className="rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold leading-relaxed text-amber-100 sm:text-left"
+          role="status"
+        >
+          {persistNotice}
+        </div>
+      ) : null}
       {done ? (
         <div
           className={`rounded-xl border px-3 py-4 text-center sm:px-6 sm:py-5 ${

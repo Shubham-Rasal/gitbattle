@@ -10,10 +10,12 @@ export function GuestMatchupPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [outcome, setOutcome] = useState<BattleOutcome | null>(null);
+  const [persistedToDb, setPersistedToDb] = useState(true);
 
   const reset = useCallback(() => {
     setOutcome(null);
     setError("");
+    setPersistedToDb(true);
   }, []);
 
   const runMatch = useCallback(async () => {
@@ -30,9 +32,13 @@ export function GuestMatchupPanel() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Matchup failed");
-      setOutcome(data as BattleOutcome);
+      const { persisted, ...rest } = data as BattleOutcome & { persisted?: boolean };
+      const o = rest as BattleOutcome;
+      setOutcome(o);
+      setPersistedToDb(persisted === true || o.battle.isGuest !== true);
     } catch (e) {
       setOutcome(null);
+      setPersistedToDb(true);
       setError(e instanceof Error ? e.message : "Matchup failed");
     } finally {
       setLoading(false);
@@ -42,7 +48,16 @@ export function GuestMatchupPanel() {
   if (outcome) {
     return (
       <div className="relative z-10 mx-auto w-full max-w-7xl px-0">
-        <BattleResultView outcome={outcome} spectator onNewBattle={reset} />
+        <BattleResultView
+          outcome={outcome}
+          spectator
+          onNewBattle={reset}
+          persistNotice={
+            persistedToDb
+              ? undefined
+              : "Share links and the leaderboard need this battle saved on the server. Set SUPABASE_SERVICE_ROLE_KEY in your deployment env and run the latest DB migration (nullable deck owner + guest battles)."
+          }
+        />
       </div>
     );
   }
@@ -105,11 +120,7 @@ export function GuestMatchupPanel() {
           {loading ? "Fetching repos & battling…" : "Run battle"}
         </button>
 
-        <p className="mt-4 text-center text-[11px] leading-relaxed text-slate-500 sm:text-left">
-          Uses the public GitHub API. Rate limits apply without a server token. Matchups are saved to the arena when the
-          server has a Supabase service role key — wins and losses count on the leaderboard by GitHub username. Sign in
-          to build saved decks and battle from My Decks.
-        </p>
+       
       </div>
     </div>
   );
