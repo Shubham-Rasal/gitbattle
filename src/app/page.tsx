@@ -11,7 +11,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (authLoading) return;
-    router.replace(user ? "/create" : "/leaderboard");
+    router.replace(user ? "/decks" : "/leaderboard");
   }, [authLoading, user, router]);
 
   return (

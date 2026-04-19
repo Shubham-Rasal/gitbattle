@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GitDex - GitHub Pokemon Cards",
+  title: "GitBattle — GitHub battle cards",
   description: "Turn any GitHub profile into a Pokemon trading card and battle other developers",
 };
 

@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function CreatePage() {
-  return null;
+  redirect("/decks");
 }

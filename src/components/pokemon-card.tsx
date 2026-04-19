@@ -266,7 +266,7 @@ export default function PokemonCardComponent({
           ) : null}
 
           <div className="flex items-center justify-between px-2 pb-1 text-[7px] text-white/65">
-            <span>GITDEX #{card.repoName.length * 7 + card.hp}</span>
+            <span>GITBATTLE #{card.repoName.length * 7 + card.hp}</span>
             <span>Battle Unit &copy;{new Date().getFullYear()}</span>
           </div>
         </div>

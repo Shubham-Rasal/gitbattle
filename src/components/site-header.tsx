@@ -4,10 +4,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { usePathname, useRouter } from "next/navigation";
 
-export type AppTab = "create" | "decks" | "leaderboard";
+export type AppTab = "decks" | "leaderboard";
 
 const NAV: { id: AppTab; label: string; shortLabel: string; authRequired: boolean; href: string }[] = [
-  { id: "create", label: "Create Deck", shortLabel: "Create", authRequired: true, href: "/create" },
   { id: "decks", label: "My Decks", shortLabel: "Decks", authRequired: true, href: "/decks" },
   { id: "leaderboard", label: "Leaderboard", shortLabel: "Ranks", authRequired: false, href: "/leaderboard" },
 ];
@@ -15,7 +14,6 @@ const NAV: { id: AppTab; label: string; shortLabel: string; authRequired: boolea
 export function tabFromPathname(pathname: string | null): AppTab {
   if (!pathname) return "leaderboard";
   if (pathname.startsWith("/decks")) return "decks";
-  if (pathname.startsWith("/create")) return "create";
   return "leaderboard";
 }
 
@@ -117,7 +115,7 @@ export default function SiteHeader({
             type="button"
             onClick={() => {
               onBrandClick?.();
-              const dest = user ? "/create" : "/leaderboard";
+              const dest = user ? "/decks" : "/leaderboard";
               if (pathname === dest) {
                 window.scrollTo({ top: 0, behavior: "smooth" });
               } else {
@@ -125,13 +123,13 @@ export default function SiteHeader({
               }
             }}
             className="flex shrink-0 items-center gap-1.5 rounded-lg text-left transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50 sm:gap-2"
-            aria-label="GitDex — home"
+            aria-label="GitBattle — home"
           >
             <span className="rounded-full border border-yellow-300/35 bg-yellow-200/10 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.16em] text-yellow-200/90 sm:px-2 sm:text-[8px] sm:tracking-[0.2em]">
               Arena
             </span>
             <span className="bg-gradient-to-r from-yellow-200 via-rose-300 to-amber-400 bg-clip-text text-base font-black tracking-tight text-transparent sm:text-lg">
-              GitDex
+              GitBattle
             </span>
           </button>
 
@@ -172,7 +170,7 @@ export default function SiteHeader({
               type="button"
               onClick={() => {
                 onBrandClick?.();
-                const dest = user ? "/create" : "/leaderboard";
+                const dest = user ? "/decks" : "/leaderboard";
                 if (pathname === dest) {
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 } else {
@@ -180,13 +178,13 @@ export default function SiteHeader({
                 }
               }}
               className="flex min-w-0 shrink-0 items-center gap-1.5 rounded-lg text-left transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50"
-              aria-label="GitDex — home"
+              aria-label="GitBattle — home"
             >
               <span className="shrink-0 rounded-full border border-yellow-300/35 bg-yellow-200/10 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.16em] text-yellow-200/90">
                 Arena
               </span>
               <span className="min-w-0 truncate bg-gradient-to-r from-yellow-200 via-rose-300 to-amber-400 bg-clip-text text-base font-black tracking-tight text-transparent">
-                GitDex
+                GitBattle
               </span>
             </button>
 

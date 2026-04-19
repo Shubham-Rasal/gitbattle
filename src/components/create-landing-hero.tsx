@@ -134,7 +134,7 @@ export default function CreateLandingHero({
           >
             {!isInline ? (
               <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 lg:text-left">
-                GitDex
+                GitBattle
               </p>
             ) : null}
             <h2

@@ -1,4 +1,4 @@
--- GitDex: Deck + Battle schema
+-- GitBattle: Deck + Battle schema
 -- Run this in the Supabase SQL editor to bootstrap the tables.
 
 -- ── Decks ───────────────────────────────────────────────────────────

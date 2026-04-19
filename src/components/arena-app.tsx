@@ -122,6 +122,8 @@ export default function ArenaApp() {
   const [myDecks, setMyDecks] = useState<DeckSummary[]>([]);
   const [decksLoading, setDecksLoading] = useState(false);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+  /** When true with existing decks, show the deck builder hero instead of the roster. */
+  const [deckBuilderOpen, setDeckBuilderOpen] = useState(false);
 
   /* battle */
   const [battleOutcome, setBattleOutcome] = useState<BattleOutcome | null>(null);
@@ -141,6 +143,10 @@ export default function ArenaApp() {
   }, [user]);
 
   useEffect(() => {
+    if (!pathname.startsWith("/decks")) setDeckBuilderOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
     if (authLoading) return;
     if (pathname.startsWith("/decks") && !user) {
       router.replace("/leaderboard");
@@ -151,6 +157,7 @@ export default function ArenaApp() {
     await ctxSignOut();
     setMyDecks([]);
     setBattleOutcome(null);
+    setDeckBuilderOpen(false);
     router.push("/leaderboard");
   }
 
@@ -229,6 +236,7 @@ export default function ArenaApp() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save");
       clearFlow();
+      setDeckBuilderOpen(false);
       router.push("/decks");
       fetchMyDecks();
     } catch (err) {
@@ -385,7 +393,11 @@ export default function ArenaApp() {
     );
   }
 
-  const unifiedCreateLanding = tab === "create" && step === "input";
+  const unifiedDeckBuilderLanding =
+    tab === "decks" &&
+    !!user &&
+    step === "input" &&
+    (deckBuilderOpen || (!decksLoading && myDecks.length === 0));
 
   return (
     <main
@@ -402,7 +414,7 @@ export default function ArenaApp() {
       />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-black/70 to-black" />
 
-      {unifiedCreateLanding ? (
+      {unifiedDeckBuilderLanding ? (
         <>
           <div className="sticky top-0 z-30 -ml-[max(1rem,env(safe-area-inset-left))] -mr-[max(1rem,env(safe-area-inset-right))] border-b border-white/15 bg-gray-950/85 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] backdrop-blur-md supports-[backdrop-filter]:bg-gray-950/70">
             <SiteHeader
@@ -413,6 +425,20 @@ export default function ArenaApp() {
               onSignOut={signOut}
             />
           </div>
+          {deckBuilderOpen && myDecks.length > 0 ? (
+            <div className="relative z-20 mx-auto w-full max-w-[80rem] px-4 pt-3 sm:px-6 lg:px-10">
+              <button
+                type="button"
+                onClick={() => {
+                  clearFlow();
+                  setDeckBuilderOpen(false);
+                }}
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-left text-xs font-bold text-slate-300 transition-colors hover:border-white/25 hover:text-white cursor-pointer"
+              >
+                ← Back to my decks
+              </button>
+            </div>
+          ) : null}
           <CreateLandingHero
             integrated
             isSignedIn={!!user}
@@ -436,10 +462,10 @@ export default function ArenaApp() {
         </div>
       )}
 
-      {/* ═══════════════ CREATE TAB ═══════════════ */}
-      {tab === "create" && (
+      {/* ═══════════════ DECK BUILDER (repos → cards) ═══════════════ */}
+      {tab === "decks" && user && (step === "select" || (step === "cards" && cards.length > 0)) && (
         <>
-          {!unifiedCreateLanding ? <StepIndicator step={step} /> : null}
+          <StepIndicator step={step} />
 
           {/* Repo picker */}
           {step === "select" && (
@@ -575,7 +601,7 @@ export default function ArenaApp() {
       )}
 
       {/* ═══════════════ DECKS & BATTLE TAB ═══════════════ */}
-      {tab === "decks" && user && (
+      {tab === "decks" && user && step === "input" && !unifiedDeckBuilderLanding && (
         <div className="relative z-10 mx-auto w-full max-w-7xl px-0">
           {/* Battle result view — shown inline when a battle has been fought */}
           {(battleLoading || battleOutcome || battleError) && (
@@ -610,27 +636,30 @@ export default function ArenaApp() {
           {/* Decks list — always visible unless a battle is in progress */}
           {!battleLoading && !battleOutcome && (
             <>
-              <header className="mb-8 border-b border-white/[0.07] pb-6">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200/80">Roster</p>
-                <h2 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">My decks</h2>
-                <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-400">
-                  Each deck is three repo cards. Battle online or run a mirror match to test lines.
-                </p>
+              <header className="mb-8 flex flex-col gap-5 border-b border-white/[0.07] pb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200/80">Roster</p>
+                  <h2 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">My decks</h2>
+                  <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-400">
+                    Each deck is three repo cards. Battle online or run a mirror match to test lines.
+                  </p>
+                </div>
+                {myDecks.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearFlow();
+                      setDeckBuilderOpen(true);
+                    }}
+                    className="shrink-0 rounded-xl border border-amber-200/40 bg-gradient-to-r from-amber-300 to-orange-400 px-5 py-3 text-sm font-black text-slate-900 shadow-[0_8px_28px_-8px_rgba(251,191,36,0.45)] transition-all hover:from-amber-200 hover:to-orange-300 active:scale-[0.99] cursor-pointer sm:px-6"
+                  >
+                    Create deck
+                  </button>
+                ) : null}
               </header>
               {decksLoading ? (
                 <div className="flex justify-center py-12 text-white"><Spinner text="Loading decks..." /></div>
-              ) : myDecks.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] px-6 py-16 text-center">
-                  <p className="text-slate-400 text-sm">No decks saved yet.</p>
-                  <button
-                    type="button"
-                    onClick={() => router.push("/create")}
-                    className="mt-5 min-h-11 rounded-xl bg-gradient-to-r from-amber-300 to-orange-400 px-6 py-3 text-sm font-black text-slate-900 cursor-pointer sm:min-h-0"
-                  >
-                    Forge a deck
-                  </button>
-                </div>
-              ) : (
+              ) : myDecks.length > 0 ? (
                 <div
                   className="overflow-hidden rounded-2xl border border-emerald-900/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]"
                   style={{
@@ -745,7 +774,7 @@ export default function ArenaApp() {
                     </>
                   ) : null}
                 </div>
-              )}
+              ) : null}
             </>
           )}
         </div>
@@ -755,19 +784,38 @@ export default function ArenaApp() {
       {tab === "leaderboard" && (
         <div className="relative z-10 mx-auto w-full max-w-7xl px-0">
           {!user && (
-            <div className="relative z-10 mb-8 w-full sm:mb-10">
+            <div className="relative z-10 w-full pb-2 sm:pb-4">
               <CreateLandingHero
                 isSignedIn={false}
                 loading={false}
                 onSignIn={signIn}
-                layout="inline"
+                layout="full"
               />
             </div>
           )}
-          <h2 className="mb-4 text-center text-xl font-black text-white sm:mb-6 sm:text-2xl">Leaderboard</h2>
 
-          <section className="mb-6 sm:mb-8">
-            <h3 className="mb-3 text-sm font-black uppercase tracking-[0.14em] text-amber-200 sm:text-xs">Battle Rankings</h3>
+          <div className="mx-auto w-full px-4 sm:px-6 lg:px-8">
+            {!user && (
+              <div
+                className="mb-10 mt-6 h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent sm:mb-12 sm:mt-8"
+                aria-hidden
+              />
+            )}
+            <h2
+              className={`text-center font-black tracking-tight text-white ${user ? "mb-4 text-xl sm:mb-6 sm:text-2xl" : "mb-2 text-2xl sm:mb-3 sm:text-3xl"}`}
+            >
+              Leaderboard
+            </h2>
+            {!user ? (
+              <p className="mx-auto mb-10 max-w-md text-center text-sm leading-relaxed text-slate-500 sm:mb-12">
+                Live rankings from the arena. Sign in with GitHub to build a deck and claim a spot.
+              </p>
+            ) : null}
+
+            <section className="mb-8 sm:mb-10">
+              <h3 className="mb-4 text-sm font-black uppercase tracking-[0.14em] text-amber-200 sm:mb-5 sm:text-xs">
+                Battle Rankings
+              </h3>
 
             {lbLoading ? (
               <div className="flex justify-center py-12 text-white"><Spinner text="Loading..." /></div>
@@ -867,70 +915,73 @@ export default function ArenaApp() {
             )}
           </section>
 
-          <section>
-            <h3 className="mb-3 text-sm font-black uppercase tracking-[0.14em] text-amber-200 sm:text-xs">Recently Created Decks</h3>
+            <section className="pb-2">
+              <h3 className="mb-4 text-sm font-black uppercase tracking-[0.14em] text-amber-200 sm:text-xs">
+                Recently Created Decks
+              </h3>
 
-            {recentDecksLoading ? (
-              <div className="flex justify-center py-6 text-white"><Spinner text="Loading decks..." /></div>
-            ) : recentDecks.length === 0 ? (
-              <p className="py-4 text-center text-sm text-slate-400">No decks have been saved yet.</p>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm [-webkit-overflow-scrolling:touch]">
-                <table className="w-full min-w-[28rem] text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-white/10 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 sm:text-[11px] sm:tracking-[0.14em]">
-                      <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Player</th>
-                      <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Deck</th>
-                      <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Cards</th>
-                      <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-4 sm:py-3">Created</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentDecks.map((deck) => (
-                      <tr key={deck.id} className="border-b border-white/5 transition-colors hover:bg-white/5">
-                        <td className="px-2 py-2.5 sm:px-4 sm:py-3">
-                          <a
-                            href={`https://github.com/${deck.githubUsername}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 group"
-                          >
-                            <img
-                              src={`https://github.com/${deck.githubUsername}.png?size=64`}
-                              alt=""
-                              className="h-7 w-7 shrink-0 rounded-full border border-white/10 bg-white/5"
-                            />
-                            <span className="truncate font-bold text-white group-hover:text-amber-200 transition-colors">
-                              {deck.githubUsername}
-                            </span>
-                          </a>
-                        </td>
-                        <td className="max-w-[10rem] truncate px-2 py-2.5 text-slate-300 sm:max-w-none sm:px-4 sm:py-3">
-                          {deck.name}
-                        </td>
-                        <td className="px-2 py-2.5 sm:px-4 sm:py-3">
-                          <div className="flex flex-wrap gap-1">
-                            {deck.cards.map((card) => (
-                              <span
-                                key={card.repoFullName}
-                                className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-bold text-slate-300"
-                              >
-                                <span className="max-w-[5rem] truncate">{card.repoName}</span>
-                                <span className="text-[9px] text-slate-500">{card.type}</span>
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="whitespace-nowrap px-2 py-2.5 text-right text-xs text-slate-500 sm:px-4 sm:py-3">
-                          {new Date(deck.createdAt).toLocaleDateString()}
-                        </td>
+              {recentDecksLoading ? (
+                <div className="flex justify-center py-6 text-white"><Spinner text="Loading decks..." /></div>
+              ) : recentDecks.length === 0 ? (
+                <p className="py-4 text-center text-sm text-slate-400">No decks have been saved yet.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm [-webkit-overflow-scrolling:touch]">
+                  <table className="w-full min-w-[28rem] text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-white/10 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 sm:text-[11px] sm:tracking-[0.14em]">
+                        <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Player</th>
+                        <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Deck</th>
+                        <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Cards</th>
+                        <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-4 sm:py-3">Created</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
+                    </thead>
+                    <tbody>
+                      {recentDecks.map((deck) => (
+                        <tr key={deck.id} className="border-b border-white/5 transition-colors hover:bg-white/5">
+                          <td className="px-2 py-2.5 sm:px-4 sm:py-3">
+                            <a
+                              href={`https://github.com/${deck.githubUsername}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 group"
+                            >
+                              <img
+                                src={`https://github.com/${deck.githubUsername}.png?size=64`}
+                                alt=""
+                                className="h-7 w-7 shrink-0 rounded-full border border-white/10 bg-white/5"
+                              />
+                              <span className="truncate font-bold text-white group-hover:text-amber-200 transition-colors">
+                                {deck.githubUsername}
+                              </span>
+                            </a>
+                          </td>
+                          <td className="max-w-[10rem] truncate px-2 py-2.5 text-slate-300 sm:max-w-none sm:px-4 sm:py-3">
+                            {deck.name}
+                          </td>
+                          <td className="px-2 py-2.5 sm:px-4 sm:py-3">
+                            <div className="flex flex-wrap gap-1">
+                              {deck.cards.map((card) => (
+                                <span
+                                  key={card.repoFullName}
+                                  className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-bold text-slate-300"
+                                >
+                                  <span className="max-w-[5rem] truncate">{card.repoName}</span>
+                                  <span className="text-[9px] text-slate-500">{card.type}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2.5 text-right text-xs text-slate-500 sm:px-4 sm:py-3">
+                            {new Date(deck.createdAt).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </div>
         </div>
       )}
     </main>
