@@ -77,6 +77,40 @@
   animation: backdrop-in 0.35s ease-out forwards;
 }
 
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.2deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(1.2deg);
+  }
+}
+
+@keyframes hero-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.05);
+  }
+}
+
+.animate-hero-float {
+  animation: hero-float 5.5s ease-in-out infinite;
+}
+
+.animate-hero-glow {
+  animation: hero-glow 6s ease-in-out infinite;
+}
+
+.animate-hero-glow-delayed {
+  animation: hero-glow 7s ease-in-out infinite 1.2s;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

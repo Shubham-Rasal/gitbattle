@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import CreateLandingHero from "@/components/create-landing-hero";
 import PokemonCardComponent from "@/components/pokemon-card";
+import Spinner from "@/components/spinner";
 import { PokemonCard, RepoStats } from "@/types/card";
 import { DeckSummary, BattleOutcome, LeaderboardEntry, BattleRoundLog } from "@/types/game";
 import { createClient } from "@/lib/supabase/client";
@@ -13,18 +15,6 @@ type AppTab = "create" | "decks" | "battle" | "leaderboard";
 type StepState = "input" | "select" | "cards";
 
 /* ── Tiny components ──────────────────────────────── */
-
-function Spinner({ text = "Summoning..." }: { text?: string }) {
-  return (
-    <span className="flex items-center gap-2">
-      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-      </svg>
-      {text}
-    </span>
-  );
-}
 
 function StepIndicator({ step }: { step: StepState }) {
   return (
@@ -114,6 +104,8 @@ export default function Home() {
   /* leaderboard */
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [lbLoading, setLbLoading] = useState(false);
+  const [recentDecks, setRecentDecks] = useState<DeckSummary[]>([]);
+  const [recentDecksLoading, setRecentDecksLoading] = useState(false);
 
   /* ── Auth bootstrap ─────────────────────────────── */
 
@@ -326,13 +318,14 @@ export default function Home() {
 
   /* ── Leaderboard ────────────────────────────────── */
 
-  const prevLbTab = useRef(tab);
   useEffect(() => {
-    const changed = prevLbTab.current !== tab;
-    prevLbTab.current = tab;
-    if (changed && tab === "leaderboard") {
-      const ctrl = new AbortController();
+    if (tab !== "leaderboard") return;
+
+    const ctrl = new AbortController();
+    const loadLeaderboardData = async () => {
       setLbLoading(true);
+      setRecentDecksLoading(true);
+
       fetch("/api/leaderboard", { signal: ctrl.signal })
         .then((r) => r.json())
         .then((data) => {
@@ -340,9 +333,20 @@ export default function Home() {
         })
         .catch(() => {})
         .finally(() => setLbLoading(false));
-      return () => ctrl.abort();
-    }
-  });
+
+      fetch("/api/decks/recent?limit=6", { signal: ctrl.signal })
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data.decks)) setRecentDecks(data.decks);
+        })
+        .catch(() => {})
+        .finally(() => setRecentDecksLoading(false));
+    };
+
+    loadLeaderboardData();
+
+    return () => ctrl.abort();
+  }, [tab]);
 
   /* ── Render ─────────────────────────────────────── */
 
@@ -366,18 +370,29 @@ export default function Home() {
       />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-black/70 to-black" />
 
-      {/* Header */}
-      <div className="relative z-10 mb-4 w-full max-w-2xl px-1 text-center sm:mb-5 sm:px-0">
-        <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full border border-yellow-300/40 bg-yellow-200/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-yellow-200/90 sm:mb-3 sm:px-3 sm:text-[11px] sm:tracking-[0.35em]">
-          Battle Arena Edition
-        </span>
-        <h1 className="mb-1.5 bg-gradient-to-r from-yellow-200 via-red-300 to-amber-400 bg-clip-text text-3xl font-black text-transparent sm:mb-2 sm:text-5xl">
-          GitDex
-        </h1>
-        <p className="text-balance px-1 text-sm leading-snug text-slate-300 sm:text-lg">
-          Turn your top GitHub repos into Pokemon cards
-        </p>
-      </div>
+      {/* Header — compact on create landing to avoid duplicate headlines */}
+      {tab === "create" && step === "input" ? (
+        <div className="relative z-10 mb-5 w-full max-w-2xl px-1 text-center sm:mb-6">
+          <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-yellow-300/40 bg-yellow-200/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-yellow-200/90 sm:px-3 sm:text-[11px] sm:tracking-[0.35em]">
+            Battle Arena Edition
+          </span>
+          <h1 className="mt-2 bg-gradient-to-r from-yellow-200 via-red-300 to-amber-400 bg-clip-text text-2xl font-black tracking-tight text-transparent sm:text-3xl">
+            GitDex
+          </h1>
+        </div>
+      ) : (
+        <div className="relative z-10 mb-4 w-full max-w-2xl px-1 text-center sm:mb-5 sm:px-0">
+          <span className="mb-2 inline-flex max-w-full items-center gap-2 rounded-full border border-yellow-300/40 bg-yellow-200/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-yellow-200/90 sm:mb-3 sm:px-3 sm:text-[11px] sm:tracking-[0.35em]">
+            Battle Arena Edition
+          </span>
+          <h1 className="mb-1.5 bg-gradient-to-r from-yellow-200 via-red-300 to-amber-400 bg-clip-text text-3xl font-black text-transparent sm:mb-2 sm:text-5xl">
+            GitDex
+          </h1>
+          <p className="text-balance px-1 text-sm leading-snug text-slate-300 sm:text-lg">
+            Turn your top GitHub repos into Pokemon cards
+          </p>
+        </div>
+      )}
 
       {/* Auth bar */}
       <div className="relative z-10 mb-4 flex w-full max-w-md flex-col items-stretch gap-2 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-3">
@@ -419,34 +434,39 @@ export default function Home() {
       {/* ═══════════════ CREATE TAB ═══════════════ */}
       {tab === "create" && (
         <>
-          <StepIndicator step={step} />
-
-          <div className="relative z-10 mb-6 w-full max-w-md px-0">
-            <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/35 p-2 backdrop-blur-sm sm:flex-row sm:items-center">
-              <div className="flex flex-1 items-center gap-2 rounded-xl bg-black/70 border border-white/10 px-4 py-3">
-                <span className="text-amber-200 font-black text-lg">@{githubUsername}</span>
-              </div>
-              {step === "input" && (
-                <button
-                  type="button"
-                  onClick={handleUserSubmit as () => void}
-                  disabled={loading}
-                  className="min-h-11 w-full shrink-0 rounded-xl border border-amber-100/50 bg-gradient-to-r from-amber-300 to-orange-400 px-4 py-3 text-base font-black text-slate-900 shadow-lg shadow-amber-200/20 transition-all hover:from-amber-200 hover:to-orange-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer sm:w-auto sm:px-6 sm:text-lg"
-                >
-                  {loading ? <Spinner /> : "Select Repos"}
-                </button>
-              )}
-              {step === "cards" && (
-                <button
-                  type="button"
-                  onClick={clearFlow}
-                  className="min-h-11 w-full shrink-0 rounded-xl border border-white/20 bg-black/70 px-4 py-3 text-base font-black text-white hover:bg-black/80 cursor-pointer sm:w-auto sm:px-6 sm:text-lg"
-                >
-                  New Search
-                </button>
-              )}
+          {step === "input" ? (
+            <div className="relative z-10 mb-8 w-full sm:mb-10">
+              <CreateLandingHero
+                isSignedIn={!!user}
+                githubUsername={githubUsername}
+                loading={loading}
+                onSignIn={signIn}
+                onBuildDeck={() => void handleUserSubmit()}
+                layout="full"
+              />
             </div>
-          </div>
+          ) : (
+            <StepIndicator step={step} />
+          )}
+
+          {(step === "select" || step === "cards") && (
+            <div className="relative z-10 mb-6 w-full max-w-md px-0 sm:max-w-2xl">
+              <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/35 p-2 backdrop-blur-sm sm:flex-row sm:items-center">
+                <div className="flex flex-1 items-center gap-2 rounded-xl border border-white/10 bg-black/70 px-4 py-3">
+                  <span className="text-lg font-black text-amber-200">@{githubUsername || username || "you"}</span>
+                </div>
+                {step === "cards" && (
+                  <button
+                    type="button"
+                    onClick={clearFlow}
+                    className="min-h-11 w-full shrink-0 rounded-xl border border-white/20 bg-black/70 px-4 py-3 text-base font-black text-white hover:bg-black/80 cursor-pointer sm:w-auto sm:px-6 sm:text-lg"
+                  >
+                    New Search
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Repo picker */}
           {step === "select" && (
@@ -532,13 +552,6 @@ export default function Home() {
             </div>
           )}
 
-          {step === "input" && !loading && !error && (
-            <div className="relative z-10 mt-6 px-2 text-center text-slate-400 sm:mt-8">
-              <div className="mb-3 text-5xl opacity-50 sm:mb-4 sm:text-6xl">&#x2694;&#xFE0F;</div>
-              <p className="text-base text-white sm:text-lg">Select repos from your GitHub profile to build your squad</p>
-              <p className="mt-1 text-xs text-slate-500 sm:text-sm">Click &quot;Select Repos&quot; to get started, @{githubUsername}</p>
-            </div>
-          )}
         </>
       )}
 
@@ -643,8 +656,41 @@ export default function Home() {
 
       {/* ═══════════════ LEADERBOARD TAB ═══════════════ */}
       {tab === "leaderboard" && (
-        <div className="relative z-10 w-full max-w-3xl px-0">
+        <div className="relative z-10 w-full max-w-4xl px-0">
+          {!user && (
+            <div className="relative z-10 mb-8 w-full sm:mb-10">
+              <CreateLandingHero
+                isSignedIn={false}
+                loading={false}
+                onSignIn={signIn}
+                layout="inline"
+              />
+            </div>
+          )}
           <h2 className="mb-4 text-center text-xl font-black text-white sm:mb-6 sm:text-2xl">Leaderboard</h2>
+
+          <section className="mb-6 rounded-xl border border-white/10 bg-black/40 p-4 backdrop-blur-sm sm:mb-8 sm:p-5">
+            <h3 className="mb-3 text-sm font-black uppercase tracking-[0.14em] text-amber-200 sm:text-xs">Recently Created Decks</h3>
+
+            {recentDecksLoading ? (
+              <div className="flex justify-center py-6 text-white"><Spinner text="Loading decks..." /></div>
+            ) : recentDecks.length === 0 ? (
+              <p className="py-4 text-center text-sm text-slate-400">No decks have been saved yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {recentDecks.map((deck) => (
+                  <div key={deck.id} className="rounded-lg border border-white/10 bg-white/5 p-3">
+                    <p className="truncate text-sm font-bold text-white">{deck.name}</p>
+                    <p className="mt-1 text-xs text-slate-400">@{deck.githubUsername}</p>
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      {deck.cards.length} cards &middot; {new Date(deck.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
           {lbLoading ? (
             <div className="flex justify-center py-12 text-white"><Spinner text="Loading..." /></div>
           ) : leaderboard.length === 0 ? (
