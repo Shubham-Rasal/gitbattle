@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import CreateLandingHero from "@/components/create-landing-hero";
 import PokemonCardComponent from "@/components/pokemon-card";
 import SiteHeader, { type AppTab } from "@/components/site-header";
 import Spinner from "@/components/spinner";
-import { PokemonCard, RepoStats } from "@/types/card";
+import { PokemonCard, RepoStats, type PokemonType } from "@/types/card";
 import { DeckSummary, BattleOutcome, LeaderboardEntry, BattleRoundLog } from "@/types/game";
 import { createClient } from "@/lib/supabase/client";
+import { TYPE_COLORS } from "@/lib/type-colors";
 import type { User } from "@supabase/supabase-js";
 
 /* ── Flow ─────────────────────────────────────────── */
@@ -17,17 +18,59 @@ type StepState = "input" | "select" | "cards";
 /* ── Tiny components ──────────────────────────────── */
 
 function StepIndicator({ step }: { step: StepState }) {
-  return (
-    <div className="mb-6 flex w-full max-w-md flex-col items-stretch gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-white/80 sm:mb-8 sm:max-w-none sm:flex-row sm:items-center sm:justify-center sm:gap-4 sm:text-xs sm:tracking-[0.18em]">
-      <span className={`text-center sm:text-left ${step === "input" ? "text-amber-200" : "text-white/60"}`}>1. Profile</span>
-      <span className="hidden h-px w-12 shrink-0 bg-white/20 sm:block" aria-hidden />
+  const steps: { id: StepState; label: string }[] = [
+    { id: "input", label: "Profile" },
+    { id: "select", label: "Repos" },
+    { id: "cards", label: "Deck" },
+  ];
+  const idx = steps.findIndex((s) => s.id === step);
+
+  function dot(i: number) {
+    const done = i < idx;
+    const active = i === idx;
+    return (
       <span
-        className={`text-center sm:text-left ${step === "select" ? "text-amber-200" : step === "cards" ? "text-white/60" : "text-white/30"}`}
+        className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-black tabular-nums transition-colors ${
+          active
+            ? "bg-amber-300 text-slate-900 shadow-[0_0_20px_-4px_rgba(251,191,36,0.65)]"
+            : done
+              ? "bg-amber-200/20 text-amber-200 ring-1 ring-amber-200/35"
+              : "bg-white/[0.06] text-white/30 ring-1 ring-white/10"
+        }`}
+        aria-current={active ? "step" : undefined}
       >
-        2. Choose Repos
+        {done ? "✓" : i + 1}
       </span>
-      <span className="hidden h-px w-12 shrink-0 bg-white/20 sm:block" aria-hidden />
-      <span className={`text-center sm:text-left ${step === "cards" ? "text-amber-200" : "text-white/30"}`}>3. Battle Deck</span>
+    );
+  }
+
+  return (
+    <div className="mb-8 w-full sm:mb-10">
+      <div className="mx-auto w-full max-w-md px-2 sm:max-w-lg">
+        <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-x-1 sm:gap-x-2">
+          <div className="flex justify-center">{dot(0)}</div>
+          <div className={`h-0.5 w-full min-w-[0.75rem] rounded-full ${0 < idx ? "bg-amber-200/40" : "bg-white/10"}`} aria-hidden />
+          <div className="flex justify-center">{dot(1)}</div>
+          <div className={`h-0.5 w-full min-w-[0.75rem] rounded-full ${1 < idx ? "bg-amber-200/40" : "bg-white/10"}`} aria-hidden />
+          <div className="flex justify-center">{dot(2)}</div>
+        </div>
+        <div className="mt-2.5 grid grid-cols-3 gap-1">
+          {steps.map((s, i) => {
+            const done = i < idx;
+            const active = i === idx;
+            return (
+              <span
+                key={s.id}
+                className={`text-center text-[9px] font-bold uppercase tracking-[0.12em] sm:text-[10px] sm:tracking-[0.14em] ${
+                  active ? "text-amber-100" : done ? "text-slate-400" : "text-slate-600"
+                }`}
+              >
+                {s.label}
+              </span>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -54,6 +97,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [savingDeck, setSavingDeck] = useState(false);
+  const [deckName, setDeckName] = useState("");
 
   /* decks */
   const [myDecks, setMyDecks] = useState<DeckSummary[]>([]);
@@ -165,7 +209,7 @@ export default function Home() {
         body: JSON.stringify({
           githubUsername: username.trim(),
           cards,
-          name: `${username.trim()}'s Deck`,
+          name: deckName.trim() || `${username.trim()}'s Deck`,
         }),
       });
       const data = await res.json();
@@ -196,6 +240,7 @@ export default function Home() {
     setCards([]);
     setCandidates([]);
     setSelectedRepos(new Set());
+    setDeckName("");
     setError("");
   }
 
@@ -251,6 +296,9 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok || !Array.isArray(data.cards)) throw new Error(data.error || "Failed to generate cards");
       setCards(data.cards);
+      const generated = data.cards as PokemonCard[];
+      const types = [...new Set(generated.map((c: PokemonCard) => c.type))];
+      setDeckName(types.length > 0 ? `${username.trim()}'s ${types.join("/")} Deck` : `${username.trim()}'s Deck`);
       setStep("cards");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -261,16 +309,15 @@ export default function Home() {
 
   /* ── Battle ─────────────────────────────────────── */
 
-  async function handleStartBattle(deckId: string, githubUsername: string) {
+  async function handleStartBattle(deckId: string, githubUsername: string, vsSelf = false) {
     setBattleLoading(true);
     setBattleError("");
     setBattleOutcome(null);
-    setTab("battle");
     try {
       const res = await fetch("/api/battle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deckId, githubUsername }),
+        body: JSON.stringify({ deckId, githubUsername, vsSelf }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Battle failed");
@@ -324,10 +371,12 @@ export default function Home() {
     );
   }
 
+  const unifiedCreateLanding = tab === "create" && step === "input";
+
   return (
     <main
       id="main-content"
-      className="relative flex min-h-screen min-h-[100dvh] flex-col items-center overflow-x-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-black px-3 py-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-10 sm:px-4 sm:py-6 sm:pt-[max(1rem,env(safe-area-inset-top))] md:py-8 md:pb-12"
+      className="relative flex min-h-screen min-h-[100dvh] flex-col items-stretch overflow-x-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-black pt-[max(0.75rem,env(safe-area-inset-top))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:pt-[max(1rem,env(safe-area-inset-top))] md:pb-12"
     >
       {/* BG effects */}
       <div
@@ -339,11 +388,38 @@ export default function Home() {
       />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-black/70 to-black" />
 
-      <SiteHeader tab={tab} onTabChange={setTab} user={user} onSignIn={signIn} onSignOut={signOut} />
+      {unifiedCreateLanding ? (
+        <>
+          <div className="sticky top-0 z-30 -ml-[max(1rem,env(safe-area-inset-left))] -mr-[max(1rem,env(safe-area-inset-right))] border-b border-white/15 bg-gray-950/85 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] backdrop-blur-md supports-[backdrop-filter]:bg-gray-950/70">
+            <SiteHeader
+              variant="integrated"
+              suppressAuth={!user}
+              tab={tab}
+              onTabChange={setTab}
+              user={user}
+              onSignIn={signIn}
+              onSignOut={signOut}
+            />
+          </div>
+          <CreateLandingHero
+            integrated
+            isSignedIn={!!user}
+            githubUsername={githubUsername}
+            loading={loading}
+            onSignIn={signIn}
+            onBuildDeck={() => void handleUserSubmit()}
+            layout="full"
+          />
+        </>
+      ) : (
+        <div className="relative z-10 w-full">
+          <SiteHeader tab={tab} onTabChange={setTab} user={user} onSignIn={signIn} onSignOut={signOut} />
+        </div>
+      )}
 
       {/* Error */}
       {error && (
-        <div className="relative z-10 mb-5 w-full max-w-md rounded-xl border border-red-500/40 bg-red-500/20 px-3 py-3 text-center text-sm text-red-200 shadow-lg shadow-red-600/20 sm:mb-6 sm:px-4">
+        <div className="relative z-10 mx-auto mb-5 w-full max-w-7xl rounded-xl border border-red-500/40 bg-red-500/20 px-3 py-3 text-center text-sm text-red-200 shadow-lg shadow-red-600/20 sm:mb-6 sm:px-4">
           {error}
         </div>
       )}
@@ -351,72 +427,57 @@ export default function Home() {
       {/* ═══════════════ CREATE TAB ═══════════════ */}
       {tab === "create" && (
         <>
-          {step === "input" ? (
-            <div className="relative z-10 mb-8 w-full sm:mb-10">
-              <CreateLandingHero
-                isSignedIn={!!user}
-                githubUsername={githubUsername}
-                loading={loading}
-                onSignIn={signIn}
-                onBuildDeck={() => void handleUserSubmit()}
-                layout="full"
-              />
-            </div>
-          ) : (
-            <StepIndicator step={step} />
-          )}
-
-          {(step === "select" || step === "cards") && (
-            <div className="relative z-10 mb-6 w-full max-w-md px-0 sm:max-w-2xl">
-              <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/35 p-2 backdrop-blur-sm sm:flex-row sm:items-center">
-                <div className="flex flex-1 items-center gap-2 rounded-xl border border-white/10 bg-black/70 px-4 py-3">
-                  <span className="text-lg font-black text-amber-200">@{githubUsername || username || "you"}</span>
-                </div>
-                {step === "cards" && (
-                  <button
-                    type="button"
-                    onClick={clearFlow}
-                    className="min-h-11 w-full shrink-0 rounded-xl border border-white/20 bg-black/70 px-4 py-3 text-base font-black text-white hover:bg-black/80 cursor-pointer sm:w-auto sm:px-6 sm:text-lg"
-                  >
-                    New Search
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
+          {!unifiedCreateLanding ? <StepIndicator step={step} /> : null}
 
           {/* Repo picker */}
           {step === "select" && (
-            <div className="relative z-10 w-full max-w-5xl px-0">
-              <div className="mb-3 px-1 text-center text-xs uppercase tracking-[0.12em] text-slate-300 sm:text-sm sm:tracking-[0.14em]">
-                Choose up to 3 repositories for your battle deck
+            <div className="relative z-10 mx-auto w-full max-w-7xl px-0">
+              <div className="mb-6 text-center sm:mb-8 sm:text-left">
+                <h3 className="text-lg font-black tracking-tight text-white sm:text-xl">Pick your fighters</h3>
+                <p className="mt-1 text-sm text-slate-400">Up to three public repos — stars and commits become card stats.</p>
               </div>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 xl:gap-5">
                 {candidates.map((repo) => {
                   const selected = selectedRepos.has(repo.fullName);
                   const blocked = !selected && selectedRepos.size >= 3;
+                  const lang = repo.language?.trim() || "—";
+                  const metaBits = [lang];
+                  if (repo.watchers > 0) metaBits.push(`${repo.watchers} watching`);
                   return (
                     <label
                       key={repo.fullName}
-                      className={`flex gap-3 rounded-xl border p-3 cursor-pointer transition-all ${selected ? "bg-amber-200/15 border-amber-200/60" : "bg-black/45 border-white/10 hover:border-white/30"} ${blocked ? "opacity-60" : ""}`}
+                      className={`group relative flex cursor-pointer gap-4 rounded-2xl border p-4 transition-all duration-200 sm:p-5 ${
+                        selected
+                          ? "border-amber-300/50 bg-amber-200/[0.08] ring-1 ring-amber-200/25 shadow-[0_0_0_1px_rgba(251,191,36,0.12)]"
+                          : "border-white/10 bg-black/35 hover:border-white/20 hover:bg-black/45"
+                      } ${blocked ? "cursor-not-allowed opacity-50" : ""}`}
                     >
-                      <input type="checkbox" checked={selected} disabled={blocked} onChange={() => toggleRepo(repo.fullName)} className="mt-1" />
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        disabled={blocked}
+                        onChange={() => toggleRepo(repo.fullName)}
+                        className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded-md border-white/20 bg-white/5 text-amber-400 accent-amber-400 focus:ring-2 focus:ring-amber-300/40 focus:ring-offset-0 disabled:cursor-not-allowed"
+                      />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-black text-sm text-white truncate">{repo.name}</p>
-                          <p className="text-xs text-amber-200 font-black">&#x2605; {repo.stars.toLocaleString()}</p>
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-black leading-tight text-white [word-break:break-word] sm:text-base">{repo.name}</p>
+                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-black/40 px-2 py-0.5 text-[11px] font-black text-amber-200 ring-1 ring-amber-200/20">
+                            <span aria-hidden>★</span>
+                            {repo.stars.toLocaleString()}
+                          </span>
                         </div>
-                        <p className="text-xs text-slate-300 truncate">{repo.fullName}</p>
-                        <p className="text-[11px] text-slate-400 mt-1">{repo.description}</p>
-                        <p className="text-[11px] text-slate-500 mt-1 uppercase tracking-[0.14em]">
-                          {repo.language} &middot; watchers {repo.watchers}
-                        </p>
+                        <p className="mt-1 truncate text-xs text-slate-500">{repo.fullName}</p>
+                        {repo.description ? (
+                          <p className="mt-2 line-clamp-2 text-sm leading-snug text-slate-400">{repo.description}</p>
+                        ) : null}
+                        <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{metaBits.join(" · ")}</p>
                       </div>
                     </label>
                   );
                 })}
               </div>
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-center sm:gap-3">
+              <div className="mt-8 flex flex-col-reverse gap-3 sm:mt-10 sm:flex-row sm:justify-end sm:gap-4">
                 <button
                   type="button"
                   onClick={() => {
@@ -424,7 +485,7 @@ export default function Home() {
                     setCandidates([]);
                     setSelectedRepos(new Set());
                   }}
-                  className="min-h-11 w-full rounded-xl border border-white/20 bg-black/45 px-6 py-3 text-sm font-black text-white hover:bg-black/65 cursor-pointer sm:w-auto sm:min-h-0"
+                  className="min-h-12 w-full rounded-2xl border border-white/15 bg-transparent px-6 py-3.5 text-sm font-black text-slate-200 transition-colors hover:border-white/25 hover:bg-white/5 cursor-pointer sm:w-auto sm:min-h-0 sm:px-8"
                 >
                   Back
                 </button>
@@ -432,9 +493,9 @@ export default function Home() {
                   type="button"
                   onClick={handleCreateDeck}
                   disabled={loading || selectedRepos.size === 0}
-                  className="min-h-11 w-full rounded-xl border border-amber-100/50 bg-gradient-to-r from-amber-300 to-orange-400 px-6 py-3 text-sm font-black text-slate-900 shadow-lg shadow-amber-200/20 transition-all hover:from-amber-200 hover:to-orange-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer sm:w-auto sm:min-h-0"
+                  className="min-h-12 w-full rounded-2xl border border-amber-200/40 bg-gradient-to-r from-amber-300 to-orange-400 px-8 py-3.5 text-sm font-black text-slate-900 shadow-[0_8px_28px_-8px_rgba(251,191,36,0.55)] transition-all hover:from-amber-200 hover:to-orange-300 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none cursor-pointer sm:w-auto sm:min-h-0"
                 >
-                  {loading ? <Spinner /> : `Create Deck (${selectedRepos.size})`}
+                  {loading ? <Spinner /> : `Continue — ${selectedRepos.size} repo${selectedRepos.size === 1 ? "" : "s"}`}
                 </button>
               </div>
             </div>
@@ -442,17 +503,46 @@ export default function Home() {
 
           {/* Cards display */}
           {step === "cards" && cards.length > 0 && (
-            <div className="relative z-10 w-full max-w-5xl px-0">
-              <p className="mb-4 px-1 text-center text-xs uppercase tracking-[0.12em] text-slate-300 sm:mb-6 sm:text-sm sm:tracking-[0.14em]">
-                @{username}&apos;s battle deck
-              </p>
+            <div className="relative z-10 mx-auto w-full max-w-7xl px-0">
+              <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <p className="px-1 text-center text-xs uppercase tracking-[0.12em] text-slate-300 sm:text-left sm:text-sm sm:tracking-[0.14em]">
+                  @{username}&apos;s battle deck
+                </p>
+                <button
+                  type="button"
+                  onClick={clearFlow}
+                  className="min-h-11 w-full shrink-0 rounded-xl border border-white/15 bg-white/5 px-5 py-2.5 text-xs font-black text-white transition-colors hover:bg-white/10 cursor-pointer sm:w-auto sm:min-h-0 sm:py-2"
+                >
+                  New search
+                </button>
+              </div>
               <div className="flex flex-col items-center gap-6 animate-fade-in sm:flex-row sm:flex-wrap sm:justify-center sm:gap-7">
                 {cards.map((card) => (
                   <PokemonCardComponent key={card.repoFullName} card={card} />
                 ))}
               </div>
               {user && (
-                <div className="mt-6 flex justify-center px-1">
+                <div className="mt-6 flex flex-col items-center gap-3 px-1">
+                  <div className="flex w-full max-w-sm items-center gap-2">
+                    <input
+                      type="text"
+                      value={deckName}
+                      onChange={(e) => setDeckName(e.target.value)}
+                      placeholder="Deck name"
+                      className="min-h-11 flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold text-white placeholder:text-slate-500 outline-none transition-colors focus:border-amber-200/40 focus:bg-white/[0.07] sm:min-h-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const types = [...new Set(cards.map((c) => c.type))];
+                        setDeckName(types.length > 0 ? `${username.trim()}'s ${types.join("/")} Deck` : `${username.trim()}'s Deck`);
+                      }}
+                      title="Generate name from card types"
+                      className="min-h-11 shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs font-bold text-slate-400 transition-colors hover:border-amber-200/30 hover:text-amber-200 cursor-pointer sm:min-h-0"
+                    >
+                      Auto
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={handleSaveDeck}
@@ -472,108 +562,116 @@ export default function Home() {
         </>
       )}
 
-      {/* ═══════════════ DECKS TAB ═══════════════ */}
+      {/* ═══════════════ DECKS & BATTLE TAB ═══════════════ */}
       {tab === "decks" && user && (
-        <div className="relative z-10 w-full max-w-5xl px-0">
-          <h2 className="mb-4 text-center text-xl font-black text-white sm:mb-6 sm:text-2xl">My Decks</h2>
-          {decksLoading ? (
-            <div className="flex justify-center py-12 text-white"><Spinner text="Loading decks..." /></div>
-          ) : myDecks.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-slate-400 mb-4">You have no saved decks yet.</p>
-              <button
-                type="button"
-                onClick={() => setTab("create")}
-                className="min-h-11 rounded-xl bg-gradient-to-r from-amber-300 to-orange-400 px-6 py-3 text-sm font-black text-slate-900 cursor-pointer sm:min-h-0"
-              >
-                Create Your First Deck
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {myDecks.map((deck) => (
-                <div key={deck.id} className="rounded-xl border border-white/10 bg-black/40 p-4 backdrop-blur-sm sm:p-5">
-                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <h3 className="text-base font-black text-white sm:text-lg">{deck.name}</h3>
-                      <p className="text-xs text-slate-500">
-                        @{deck.githubUsername} &middot; {deck.cards.length} cards &middot; {new Date(deck.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
-                      <button
-                        type="button"
-                        onClick={() => handleStartBattle(deck.id, deck.githubUsername)}
-                        disabled={battleLoading}
-                        className="min-h-10 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 px-4 py-2 text-xs font-black text-white transition-all hover:from-red-400 hover:to-orange-400 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer sm:min-h-0"
-                      >
-                        Battle!
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteDeck(deck.id)}
-                        className="min-h-10 rounded-lg border border-red-500/30 px-3 py-2 text-xs text-red-400 transition-all hover:bg-red-500/10 cursor-pointer sm:min-h-0"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-center gap-8 sm:flex-row sm:flex-wrap sm:items-start sm:justify-center sm:gap-x-6 sm:gap-y-10">
-                    {deck.cards.map((card) => (
-                      <div
-                        key={card.repoFullName}
-                        className="flex w-full max-w-[330px] shrink-0 justify-center sm:w-[330px] sm:max-w-[330px] sm:-mr-28 sm:-mb-36 sm:origin-top-left sm:scale-[0.65]"
-                      >
-                        <PokemonCardComponent card={card} />
-                      </div>
-                    ))}
-                  </div>
+        <div className="relative z-10 mx-auto w-full max-w-7xl px-0">
+          {/* Battle result view — shown inline when a battle has been fought */}
+          {(battleLoading || battleOutcome || battleError) && (
+            <div className="mb-8">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-xl font-black text-white sm:text-2xl">Battle Arena</h2>
+                <button
+                  type="button"
+                  onClick={() => { setBattleOutcome(null); setBattleError(""); }}
+                  className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition-colors hover:border-white/25 hover:text-white cursor-pointer"
+                >
+                  Back to Decks
+                </button>
+              </div>
+
+              {battleError && (
+                <div className="mx-auto mb-6 max-w-md rounded-xl border border-red-500/40 bg-red-500/20 px-3 py-3 text-center text-sm text-red-200 sm:px-4">
+                  {battleError}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+              )}
 
-      {/* ═══════════════ BATTLE TAB ═══════════════ */}
-      {tab === "battle" && user && (
-        <div className="relative z-10 w-full max-w-5xl px-0">
-          <h2 className="mb-4 text-center text-xl font-black text-white sm:mb-6 sm:text-2xl">Battle Arena</h2>
+              {battleLoading && (
+                <div className="flex justify-center py-12 text-white"><Spinner text="Finding opponent and battling..." /></div>
+              )}
 
-          {battleError && (
-            <div className="mx-auto mb-6 max-w-md rounded-xl border border-red-500/40 bg-red-500/20 px-3 py-3 text-center text-sm text-red-200 sm:px-4">
-              {battleError}
+              {battleOutcome && (
+                <BattleResultView outcome={battleOutcome} onNewBattle={() => { setBattleOutcome(null); setBattleError(""); }} />
+              )}
             </div>
           )}
 
-          {battleLoading && (
-            <div className="flex justify-center py-12 text-white"><Spinner text="Finding opponent and battling..." /></div>
-          )}
-
+          {/* Decks list — always visible unless a battle is in progress */}
           {!battleLoading && !battleOutcome && (
-            <div className="px-2 py-10 text-center sm:py-12">
-              <p className="mb-4 text-balance text-sm text-slate-400 sm:text-base">
-                Select a deck from &quot;My Decks&quot; tab and hit &quot;Battle!&quot; to find a random opponent.
-              </p>
-              <button
-                type="button"
-                onClick={() => setTab("decks")}
-                className="min-h-11 rounded-xl bg-gradient-to-r from-amber-300 to-orange-400 px-6 py-3 text-sm font-black text-slate-900 cursor-pointer sm:min-h-0"
-              >
-                Go to My Decks
-              </button>
-            </div>
-          )}
-
-          {battleOutcome && (
-            <BattleResultView outcome={battleOutcome} onNewBattle={() => { setBattleOutcome(null); setTab("decks"); }} />
+            <>
+              <h2 className="mb-4 text-center text-xl font-black text-white sm:mb-6 sm:text-2xl">My Decks</h2>
+              {decksLoading ? (
+                <div className="flex justify-center py-12 text-white"><Spinner text="Loading decks..." /></div>
+              ) : myDecks.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-400 mb-4">You have no saved decks yet.</p>
+                  <button
+                    type="button"
+                    onClick={() => setTab("create")}
+                    className="min-h-11 rounded-xl bg-gradient-to-r from-amber-300 to-orange-400 px-6 py-3 text-sm font-black text-slate-900 cursor-pointer sm:min-h-0"
+                  >
+                    Create Your First Deck
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {myDecks.map((deck) => (
+                    <div key={deck.id} className="rounded-xl border border-white/10 bg-black/40 p-4 backdrop-blur-sm sm:p-5">
+                      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <h3 className="text-base font-black text-white sm:text-lg">{deck.name}</h3>
+                          <p className="text-xs text-slate-500">
+                            @{deck.githubUsername} &middot; {deck.cards.length} cards &middot; {new Date(deck.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
+                          <button
+                            type="button"
+                            onClick={() => handleStartBattle(deck.id, deck.githubUsername)}
+                            disabled={battleLoading}
+                            className="min-h-10 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 px-4 py-2 text-xs font-black text-white transition-all hover:from-red-400 hover:to-orange-400 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer sm:min-h-0"
+                          >
+                            Battle!
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleStartBattle(deck.id, deck.githubUsername, true)}
+                            disabled={battleLoading}
+                            title="Battle this deck against itself"
+                            className="min-h-10 rounded-lg border border-violet-500/50 bg-violet-500/10 px-4 py-2 text-xs font-black text-violet-300 transition-all hover:bg-violet-500/20 hover:text-violet-200 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer sm:min-h-0"
+                          >
+                            vs Self
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDeck(deck.id)}
+                            className="min-h-10 rounded-lg border border-red-500/30 px-3 py-2 text-xs text-red-400 transition-all hover:bg-red-500/10 cursor-pointer sm:min-h-0"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-center gap-8 sm:flex-row sm:flex-wrap sm:items-start sm:justify-center sm:gap-x-6 sm:gap-y-10">
+                        {deck.cards.map((card) => (
+                          <div
+                            key={card.repoFullName}
+                            className="flex w-full max-w-[330px] shrink-0 justify-center sm:w-[330px] sm:max-w-[330px] sm:-mr-28 sm:-mb-36 sm:origin-top-left sm:scale-[0.65]"
+                          >
+                            <PokemonCardComponent card={card} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
 
       {/* ═══════════════ LEADERBOARD TAB ═══════════════ */}
       {tab === "leaderboard" && (
-        <div className="relative z-10 w-full max-w-5xl px-0">
+        <div className="relative z-10 mx-auto w-full max-w-7xl px-0">
           {!user && (
             <div className="relative z-10 mb-8 w-full sm:mb-10">
               <CreateLandingHero
@@ -598,30 +696,49 @@ export default function Home() {
                 <table className="w-full min-w-[28rem] text-left text-sm">
                   <thead>
                     <tr className="border-b border-white/10 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 sm:text-[11px] sm:tracking-[0.14em]">
-                      <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Deck</th>
                       <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Player</th>
-                      <th className="whitespace-nowrap px-2 py-2.5 text-center sm:px-4 sm:py-3">Cards</th>
+                      <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Deck</th>
+                      <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Cards</th>
                       <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-4 sm:py-3">Created</th>
                     </tr>
                   </thead>
                   <tbody>
                     {recentDecks.map((deck) => (
                       <tr key={deck.id} className="border-b border-white/5 transition-colors hover:bg-white/5">
-                        <td className="max-w-[10rem] truncate px-2 py-2.5 font-bold text-white sm:max-w-none sm:px-4 sm:py-3">
-                          {deck.name}
-                        </td>
                         <td className="px-2 py-2.5 sm:px-4 sm:py-3">
                           <a
                             href={`https://github.com/${deck.githubUsername}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-slate-400 underline decoration-white/10 underline-offset-2 transition-colors hover:text-amber-200/90"
+                            className="flex items-center gap-2 group"
                           >
-                            @{deck.githubUsername}
+                            <img
+                              src={`https://github.com/${deck.githubUsername}.png?size=64`}
+                              alt=""
+                              className="h-7 w-7 shrink-0 rounded-full border border-white/10 bg-white/5"
+                            />
+                            <span className="truncate font-bold text-white group-hover:text-amber-200 transition-colors">
+                              {deck.githubUsername}
+                            </span>
                           </a>
                         </td>
-                        <td className="px-2 py-2.5 text-center text-slate-300 sm:px-4 sm:py-3">{deck.cards.length}</td>
-                        <td className="whitespace-nowrap px-2 py-2.5 text-right text-slate-500 sm:px-4 sm:py-3">
+                        <td className="max-w-[10rem] truncate px-2 py-2.5 text-slate-300 sm:max-w-none sm:px-4 sm:py-3">
+                          {deck.name}
+                        </td>
+                        <td className="px-2 py-2.5 sm:px-4 sm:py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {deck.cards.map((card) => (
+                              <span
+                                key={card.repoFullName}
+                                className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-bold text-slate-300"
+                              >
+                                <span className="max-w-[5rem] truncate">{card.repoName}</span>
+                                <span className="text-[9px] text-slate-500">{card.type}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-2.5 text-right text-xs text-slate-500 sm:px-4 sm:py-3">
                           {new Date(deck.createdAt).toLocaleDateString()}
                         </td>
                       </tr>
@@ -632,51 +749,106 @@ export default function Home() {
             )}
           </section>
 
-          {lbLoading ? (
-            <div className="flex justify-center py-12 text-white"><Spinner text="Loading..." /></div>
-          ) : leaderboard.length === 0 ? (
-            <p className="text-center text-slate-400 py-12">No battles have been fought yet. Be the first!</p>
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm [-webkit-overflow-scrolling:touch]">
-              <table className="w-full min-w-[32rem] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-white/10 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 sm:text-[11px] sm:tracking-[0.14em]">
-                    <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">#</th>
-                    <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Player</th>
-                    <th className="whitespace-nowrap px-2 py-2.5 text-center sm:px-4 sm:py-3">W</th>
-                    <th className="whitespace-nowrap px-2 py-2.5 text-center sm:px-4 sm:py-3">L</th>
-                    <th className="whitespace-nowrap px-2 py-2.5 text-center sm:px-4 sm:py-3">D</th>
-                    <th className="whitespace-nowrap px-2 py-2.5 text-center sm:px-4 sm:py-3">Win %</th>
-                    <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-4 sm:py-3">Battles</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leaderboard.map((entry, i) => (
-                    <tr key={entry.userId} className="border-b border-white/5 transition-colors hover:bg-white/5">
-                      <td className="px-2 py-2.5 font-black text-amber-200 sm:px-4 sm:py-3">{i + 1}</td>
-                      <td className="max-w-[9rem] truncate px-2 py-2.5 font-bold sm:max-w-none sm:px-4 sm:py-3">
-                        <a
-                          href={`https://github.com/${entry.githubUsername}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-white underline decoration-white/15 underline-offset-2 transition-colors hover:text-amber-200"
-                        >
-                          {entry.githubUsername}
-                        </a>
-                      </td>
-                      <td className="px-2 py-2.5 text-center text-emerald-400 sm:px-4 sm:py-3">{entry.wins}</td>
-                      <td className="px-2 py-2.5 text-center text-red-400 sm:px-4 sm:py-3">{entry.losses}</td>
-                      <td className="px-2 py-2.5 text-center text-slate-400 sm:px-4 sm:py-3">{entry.draws}</td>
-                      <td className="px-2 py-2.5 text-center font-black text-amber-200 sm:px-4 sm:py-3">
-                        {(entry.winRate * 100).toFixed(1)}%
-                      </td>
-                      <td className="px-2 py-2.5 text-right text-slate-300 sm:px-4 sm:py-3">{entry.totalBattles}</td>
+          <section>
+            <h3 className="mb-3 text-sm font-black uppercase tracking-[0.14em] text-amber-200 sm:text-xs">Battle Rankings</h3>
+
+            {lbLoading ? (
+              <div className="flex justify-center py-12 text-white"><Spinner text="Loading..." /></div>
+            ) : leaderboard.length === 0 ? (
+              <p className="text-center text-slate-400 py-12">No battles have been fought yet. Be the first!</p>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm [-webkit-overflow-scrolling:touch]">
+                <table className="w-full min-w-[36rem] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400 sm:text-[11px] sm:tracking-[0.14em]">
+                      <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3 w-10">#</th>
+                      <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Player</th>
+                      <th className="whitespace-nowrap px-2 py-2.5 sm:px-4 sm:py-3">Record</th>
+                      <th className="whitespace-nowrap px-2 py-2.5 text-center sm:px-4 sm:py-3">Win&nbsp;%</th>
+                      <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-4 sm:py-3">Last&nbsp;Played</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {leaderboard.map((entry, i) => {
+                      const rank = i + 1;
+                      const medalColor = rank === 1
+                        ? "text-amber-300"
+                        : rank === 2
+                          ? "text-slate-300"
+                          : rank === 3
+                            ? "text-orange-400"
+                            : "text-slate-500";
+                      const medal = rank === 1 ? "\u{1F947}" : rank === 2 ? "\u{1F948}" : rank === 3 ? "\u{1F949}" : null;
+                      const winPct = entry.totalBattles > 0 ? (entry.wins / entry.totalBattles) * 100 : 0;
+                      const lossPct = entry.totalBattles > 0 ? (entry.losses / entry.totalBattles) * 100 : 0;
+
+                      return (
+                        <tr
+                          key={entry.userId}
+                          className={`border-b border-white/5 transition-colors hover:bg-white/5 ${rank <= 3 ? "bg-white/[0.02]" : ""}`}
+                        >
+                          <td className={`px-2 py-3 font-black sm:px-4 sm:py-4 ${medalColor}`}>
+                            {medal ? <span className="text-base">{medal}</span> : rank}
+                          </td>
+                          <td className="px-2 py-3 sm:px-4 sm:py-4">
+                            <a
+                              href={`https://github.com/${entry.githubUsername}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2.5 group"
+                            >
+                              <img
+                                src={`https://github.com/${entry.githubUsername}.png?size=80`}
+                                alt=""
+                                className={`h-8 w-8 shrink-0 rounded-full border bg-white/5 ${rank === 1 ? "border-amber-400/50 ring-2 ring-amber-400/20" : rank <= 3 ? "border-white/20" : "border-white/10"}`}
+                              />
+                              <div className="min-w-0">
+                                <span className="block truncate font-bold text-white group-hover:text-amber-200 transition-colors">
+                                  {entry.githubUsername}
+                                </span>
+                                <span className="block text-[10px] text-slate-500">
+                                  {entry.totalBattles} battle{entry.totalBattles !== 1 ? "s" : ""}
+                                </span>
+                              </div>
+                            </a>
+                          </td>
+                          <td className="px-2 py-3 sm:px-4 sm:py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs tabular-nums">
+                                <span className="font-bold text-emerald-400">{entry.wins}</span>
+                                <span className="text-slate-600">/</span>
+                                <span className="font-bold text-red-400">{entry.losses}</span>
+                                <span className="text-slate-600">/</span>
+                                <span className="text-slate-400">{entry.draws}</span>
+                              </span>
+                              <div className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-white/5 sm:block">
+                                <div className="flex h-full">
+                                  <div className="bg-emerald-500 transition-all" style={{ width: `${winPct}%` }} />
+                                  <div className="bg-red-500 transition-all" style={{ width: `${lossPct}%` }} />
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-2 py-3 text-center sm:px-4 sm:py-4">
+                            <span className={`inline-block min-w-[3rem] rounded-full px-2 py-0.5 text-xs font-black ${
+                              winPct >= 70 ? "bg-emerald-500/15 text-emerald-400" :
+                              winPct >= 40 ? "bg-amber-500/15 text-amber-300" :
+                              "bg-red-500/15 text-red-400"
+                            }`}>
+                              {(entry.winRate * 100).toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-3 text-right text-xs text-slate-500 sm:px-4 sm:py-4">
+                            {entry.lastPlayed ? new Date(entry.lastPlayed).toLocaleDateString() : "--"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
       )}
     </main>
@@ -685,59 +857,265 @@ export default function Home() {
 
 /* ── Battle Result Component ──────────────────────── */
 
+function groupLogsByEngineTurn(logs: BattleRoundLog[]): BattleRoundLog[][] {
+  const map = new Map<number, BattleRoundLog[]>();
+  for (const log of logs) {
+    const arr = map.get(log.turn) ?? [];
+    arr.push(log);
+    map.set(log.turn, arr);
+  }
+  return [...map.keys()]
+    .sort((a, b) => a - b)
+    .map((k) => map.get(k)!);
+}
+
+function moveTypeStyle(moveType: string) {
+  return TYPE_COLORS[moveType as PokemonType] ?? TYPE_COLORS.normal;
+}
+
 function BattleResultView({ outcome, onNewBattle }: { outcome: BattleOutcome; onNewBattle: () => void }) {
   const { battle, attackerDeck, defenderDeck } = outcome;
   const isWin = battle.result === "win";
   const isDraw = battle.result === "draw";
+  const isSelfBattle = attackerDeck.id === defenderDeck.id;
+
+  const turnGroups = useMemo(() => groupLogsByEngineTurn(battle.roundLogs), [battle.roundLogs]);
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    setStep(0);
+  }, [battle.id, battle.seed, battle.roundLogs.length]);
+
+  const lastIdx = Math.max(0, turnGroups.length - 1);
+  const safeStep = Math.min(step, lastIdx);
+  const currentLogs = turnGroups[safeStep] ?? [];
+  const firstLog = currentLogs[0];
+
+  const faceoff = useMemo(() => {
+    if (!firstLog) return null;
+    const pair = [firstLog.attackerCard, firstLog.defenderCard];
+    const leftCard = attackerDeck.cards.find((c) => pair.includes(c.repoName));
+    const rightCard = defenderDeck.cards.find((c) => pair.includes(c.repoName));
+    if (!leftCard || !rightCard) return null;
+    return { leftCard, rightCard };
+  }, [firstLog, attackerDeck.cards, defenderDeck.cards]);
+
+  const exchangeResult = useMemo(() => {
+    const ko = currentLogs.find((l) => l.status === "knockout");
+    if (!ko) {
+      return { kind: "ongoing" as const, message: "Both cards survive — next matchup." };
+    }
+    const loserRepo = ko.defenderCard;
+    const winnerRepo = ko.attackerCard;
+    const loserOnOpponentSide = defenderDeck.cards.some((c) => c.repoName === loserRepo);
+    if (isSelfBattle) {
+      const sideLost = loserOnOpponentSide ? "Side B" : "Side A";
+      return {
+        kind: "ko" as const,
+        tone: "neutral" as const,
+        message: `${sideLost} loses a fighter: ${loserRepo} is knocked out.`,
+      };
+    }
+    if (loserOnOpponentSide) {
+      return {
+        kind: "ko" as const,
+        tone: "good" as const,
+        message: `You win this exchange — ${winnerRepo} knocks out ${loserRepo}.`,
+      };
+    }
+    return {
+      kind: "ko" as const,
+      tone: "bad" as const,
+      message: `You lose this exchange — your ${loserRepo} is knocked out.`,
+    };
+  }, [currentLogs, defenderDeck.cards, isSelfBattle]);
 
   return (
     <div className="space-y-6">
-      {/* Result banner */}
       <div
-        className={`rounded-xl border px-3 py-5 text-center sm:px-6 sm:py-6 ${
+        className={`rounded-xl border px-3 py-4 text-center sm:px-6 sm:py-5 ${
           isWin
-            ? "bg-emerald-500/15 border-emerald-500/40"
+            ? "border-emerald-500/40 bg-emerald-500/15"
             : isDraw
-              ? "bg-amber-500/15 border-amber-500/40"
-              : "bg-red-500/15 border-red-500/40"
+              ? "border-amber-500/40 bg-amber-500/15"
+              : "border-red-500/40 bg-red-500/15"
         }`}
       >
-        <div
-          className={`mb-2 text-2xl font-black sm:text-4xl ${isWin ? "text-emerald-400" : isDraw ? "text-amber-400" : "text-red-400"}`}
-        >
-          {isWin ? "VICTORY!" : isDraw ? "DRAW" : "DEFEAT"}
+        <div className={`text-xl font-black sm:text-3xl ${isWin ? "text-emerald-400" : isDraw ? "text-amber-400" : "text-red-400"}`}>
+          {isWin ? "Victory" : isDraw ? "Draw" : "Defeat"}
         </div>
-        <p className="text-balance text-xs text-slate-300 sm:text-sm">
-          <span className="text-white font-bold">@{battle.attackerUsername}</span> vs{" "}
-          <span className="text-white font-bold">@{battle.defenderUsername}</span>
-          {" "}&middot; {battle.roundCount} rounds
+        <p className="mt-1 text-balance text-xs text-slate-300 sm:text-sm">
+          <a
+            href={`https://github.com/${battle.attackerUsername}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-bold text-white underline decoration-white/20 underline-offset-2 hover:text-amber-200"
+          >
+            @{battle.attackerUsername}
+          </a>{" "}
+          {isSelfBattle ? (
+            <span className="font-bold text-violet-400">vs self</span>
+          ) : (
+            <>
+              vs{" "}
+              <a
+                href={`https://github.com/${battle.defenderUsername}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-white underline decoration-white/20 underline-offset-2 hover:text-amber-200"
+              >
+                @{battle.defenderUsername}
+              </a>
+            </>
+          )}
+          <span className="text-slate-500"> · {turnGroups.length} matchup{turnGroups.length !== 1 ? "s" : ""}</span>
         </p>
       </div>
 
-      {/* Deck comparison */}
+      {/* Step-by-step exchange replay */}
+      {turnGroups.length > 0 && faceoff ? (
+        <div className="rounded-2xl border border-white/10 bg-black/40 p-4 sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Matchup</p>
+              <p className="text-lg font-black text-white">
+                {safeStep + 1} <span className="text-slate-500">/</span> {turnGroups.length}
+              </p>
+            </div>
+            <div className="flex w-full gap-2 sm:w-auto">
+              <button
+                type="button"
+                disabled={safeStep <= 0}
+                onClick={() => setStep((s) => Math.max(0, s - 1))}
+                className="min-h-10 flex-1 rounded-xl border border-white/15 bg-white/5 px-4 text-xs font-black text-white transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35 sm:flex-initial"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={safeStep >= lastIdx}
+                onClick={() => setStep((s) => Math.min(lastIdx, s + 1))}
+                className="min-h-10 flex-1 rounded-xl border border-amber-200/35 bg-amber-200/15 px-4 text-xs font-black text-amber-100 transition-colors hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-35 sm:flex-initial"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+
+          <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-amber-300 to-orange-400 transition-all duration-300"
+              style={{ width: `${((safeStep + 1) / turnGroups.length) * 100}%` }}
+            />
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-3">
+            <div
+              className={`rounded-xl border p-4 text-center ${
+                isSelfBattle ? "border-violet-400/30 bg-violet-500/10" : "border-amber-200/25 bg-amber-200/5"
+              }`}
+            >
+              <p className="mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                {isSelfBattle ? "Side A (attacker)" : "Your card"}
+              </p>
+              <img
+                src={faceoff.leftCard.ownerAvatar}
+                alt=""
+                className="mx-auto h-16 w-16 rounded-full border-2 border-white/20 object-cover sm:h-20 sm:w-20"
+              />
+              <p className="mt-2 truncate text-base font-black text-white">{faceoff.leftCard.repoName}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                {faceoff.leftCard.type} · HP {faceoff.leftCard.hp}
+              </p>
+            </div>
+
+            <div className="flex justify-center py-2 sm:py-0">
+              <span className="rounded-full border border-white/15 bg-black/50 px-4 py-2 text-sm font-black text-white/90">VS</span>
+            </div>
+
+            <div
+              className={`rounded-xl border p-4 text-center ${
+                isSelfBattle ? "border-sky-400/30 bg-sky-500/10" : "border-sky-300/25 bg-sky-500/5"
+              }`}
+            >
+              <p className="mb-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                {isSelfBattle ? "Side B (defender)" : "Opponent"}
+              </p>
+              <img
+                src={faceoff.rightCard.ownerAvatar}
+                alt=""
+                className="mx-auto h-16 w-16 rounded-full border-2 border-white/20 object-cover sm:h-20 sm:w-20"
+              />
+              <p className="mt-2 truncate text-base font-black text-white">{faceoff.rightCard.repoName}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                {faceoff.rightCard.type} · HP {faceoff.rightCard.hp}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">This exchange</p>
+            {currentLogs.map((log, i) => {
+              const t = moveTypeStyle(log.moveType);
+              return (
+                <div
+                  key={`${log.turn}-${i}`}
+                  className={`rounded-xl border px-3 py-2.5 text-sm sm:px-4 ${
+                    log.status === "knockout" ? "border-red-400/35 bg-red-500/10" : "border-white/10 bg-black/35"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-black text-amber-200">{log.attackerCard}</span>
+                    <span className="text-slate-500">→</span>
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-black uppercase text-white ${t.badge}`}>{log.move}</span>
+                    <span className="text-slate-500">→</span>
+                    <span className="font-bold text-sky-200">{log.defenderCard}</span>
+                    <span className="font-black text-white">{log.damage} dmg</span>
+                    {log.wasWeak ? <span className="text-xs font-bold text-rose-300">Super effective</span> : null}
+                    {log.wasResisted ? <span className="text-xs font-bold text-slate-400">Resisted</span> : null}
+                    {log.wasCrit ? <span className="text-xs font-bold text-yellow-300">Crit</span> : null}
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    HP {log.defenderHpBefore} → {log.defenderHpAfter}
+                    {log.status === "knockout" ? <span className="ml-2 font-black text-red-300">KO</span> : null}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div
+            className={`mt-4 rounded-xl border px-4 py-3 text-center text-sm font-bold ${
+              exchangeResult.kind === "ko"
+                ? exchangeResult.tone === "good"
+                  ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
+                  : exchangeResult.tone === "bad"
+                    ? "border-red-400/35 bg-red-500/10 text-red-200"
+                    : "border-white/15 bg-white/5 text-slate-200"
+                : "border-white/10 bg-black/30 text-slate-400"
+            }`}
+          >
+            {exchangeResult.message}
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <DeckPreview deck={attackerDeck} label="Your Deck" highlight={isWin} />
-        <DeckPreview deck={defenderDeck} label="Opponent" highlight={!isWin && !isDraw} />
+        <DeckPreview deck={attackerDeck} label={isSelfBattle ? "Attacker (Side A)" : "Your Deck"} highlight={isWin} />
+        <DeckPreview deck={defenderDeck} label={isSelfBattle ? "Defender (Side B)" : "Opponent"} highlight={!isWin && !isDraw} />
       </div>
 
-      {/* Battle log */}
-      <details className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
-        <summary className="px-4 py-3 text-sm font-black text-white/80 cursor-pointer hover:bg-white/5 transition-colors uppercase tracking-[0.14em]">
-          Battle Log ({battle.roundLogs.length} events)
+      <details className="overflow-hidden rounded-xl border border-white/10 bg-black/40">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-white/80 transition-colors hover:bg-white/5">
+          Full battle log ({battle.roundLogs.length} hits)
         </summary>
-        <div className="px-4 pb-4 max-h-80 overflow-y-auto space-y-1">
+        <div className="max-h-80 space-y-1 overflow-y-auto px-4 pb-4">
           {battle.roundLogs.map((log: BattleRoundLog, i: number) => (
-            <div key={i} className={`text-xs py-1 px-2 rounded ${log.status === "knockout" ? "bg-red-500/10 text-red-300" : "text-slate-400"}`}>
-              <span className="text-white/60">T{log.turn}</span>{" "}
-              <span className="text-amber-200 font-bold">{log.attackerCard}</span> used{" "}
-              <span className="text-white font-bold">{log.move}</span> on{" "}
-              <span className="text-sky-300 font-bold">{log.defenderCard}</span>
-              {" "}&rarr; {log.damage} dmg
-              {log.wasWeak && <span className="text-red-400 ml-1">(super effective!)</span>}
-              {log.wasResisted && <span className="text-slate-500 ml-1">(resisted)</span>}
-              {log.wasCrit && <span className="text-yellow-400 ml-1">(CRIT!)</span>}
-              {log.status === "knockout" && <span className="text-red-400 font-black ml-1">KO!</span>}
-              <span className="text-white/30 ml-1">[{log.defenderHpBefore}&rarr;{log.defenderHpAfter} HP]</span>
+            <div key={i} className={`rounded px-2 py-1 text-xs ${log.status === "knockout" ? "bg-red-500/10 text-red-300" : "text-slate-400"}`}>
+              <span className="text-white/50">T{log.turn}</span>{" "}
+              <span className="font-bold text-amber-200">{log.attackerCard}</span> · {log.move} ·{" "}
+              <span className="text-sky-300">{log.defenderCard}</span> ({log.damage})
+              {log.status === "knockout" ? <span className="font-black text-red-400"> KO</span> : null}
             </div>
           ))}
         </div>

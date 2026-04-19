@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import PokemonCardComponent from "@/components/pokemon-card";
 import Spinner from "@/components/spinner";
 import { DEMO_PREVIEW_CARD } from "@/lib/demo-card";
+import type { PublicArenaStats } from "@/types/game";
 
 type CreateLandingHeroProps = {
   isSignedIn: boolean;
@@ -12,6 +14,8 @@ type CreateLandingHeroProps = {
   onBuildDeck?: () => void;
   /** "full" = create tab; "inline" = smaller strip (e.g. leaderboard teaser) */
   layout?: "full" | "inline";
+  /** Rendered inside AppShell with SiteHeader — no duplicate outer card */
+  integrated?: boolean;
 };
 
 export default function CreateLandingHero({
@@ -21,100 +25,118 @@ export default function CreateLandingHero({
   onBuildDeck = () => {},
   onSignIn,
   layout = "full",
+  integrated = false,
 }: CreateLandingHeroProps) {
   const isInline = layout === "inline";
   const usernameLabel = githubUsername ? `@${githubUsername}` : "your account";
 
+  const [arenaStats, setArenaStats] = useState<PublicArenaStats | null>(null);
+  const [statsFailed, setStatsFailed] = useState(false);
+
+  useEffect(() => {
+    if (isInline) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/stats");
+        if (!res.ok) {
+          if (!cancelled) setStatsFailed(true);
+          return;
+        }
+        const data = (await res.json()) as PublicArenaStats;
+        if (!cancelled) {
+          setArenaStats(data);
+          setStatsFailed(false);
+        }
+      } catch {
+        if (!cancelled) setStatsFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isInline]);
+
+  const statPending = !isInline && arenaStats == null && !statsFailed;
+  const dash = "—";
+
+  const playersLabel = statPending
+    ? "…"
+    : arenaStats != null
+      ? `${arenaStats.playerCount.toLocaleString()} ${arenaStats.playerCount === 1 ? "Player" : "Players"}`
+      : dash;
+  const cardsLabel = statPending
+    ? "…"
+    : arenaStats?.cardsForged != null
+      ? arenaStats.cardsForged.toLocaleString()
+      : dash;
+  const streakLabel = statPending
+    ? "…"
+    : arenaStats != null
+      ? `${arenaStats.bestWinStreak.toLocaleString()} ${arenaStats.bestWinStreak === 1 ? "Win" : "Wins"}`
+      : dash;
+
   return (
     <section
-      className={`relative z-10 w-full max-w-6xl ${isInline ? "px-0" : "px-1 sm:px-3"}`}
+      className={`relative z-10 w-full ${isInline ? "max-w-none px-0" : integrated ? "max-w-none px-4 py-6 sm:px-6 sm:py-8 lg:mx-auto lg:max-w-7xl lg:px-8" : "max-w-5xl px-1 sm:px-3"}`}
       aria-labelledby="create-hero-heading"
     >
-      {!isInline ? (
+      {!isInline && !integrated ? (
         <>
           <div className="pointer-events-none absolute -left-24 top-20 h-72 w-72 rounded-full bg-orange-500/20 blur-3xl animate-hero-glow" />
           <div className="pointer-events-none absolute -right-20 top-8 h-64 w-64 rounded-full bg-sky-500/15 blur-3xl animate-hero-glow-delayed" />
-          <div className="pointer-events-none absolute inset-x-12 top-4 h-px bg-gradient-to-r from-transparent via-yellow-200/45 to-transparent" />
         </>
       ) : null}
 
       <div
-        className={`relative overflow-hidden rounded-3xl border ${
+        className={`relative overflow-hidden ${
           isInline
-            ? "border-white/10 bg-black/35 px-4 py-5"
-            : "border-yellow-300/25 bg-gradient-to-br from-[#0a1324]/90 via-[#071326]/95 to-[#070b14]/95 px-4 py-6 shadow-[0_30px_90px_-50px_rgba(245,158,11,0.7)] sm:px-6 sm:py-7 lg:px-8 lg:py-8"
+            ? "rounded-3xl border border-white/10 bg-black/35 px-4 py-5"
+            : integrated
+              ? "rounded-none border-0 bg-transparent px-0 py-0 shadow-none"
+              : "rounded-2xl border border-white/10 bg-black/50 px-4 py-6 shadow-lg shadow-black/25 backdrop-blur-md sm:px-6 sm:py-7 lg:px-8 lg:py-8"
         }`}
       >
-        {!isInline ? (
+        {!isInline && !integrated ? (
           <div
-            className="pointer-events-none absolute inset-0 opacity-35"
+            className="pointer-events-none absolute inset-0 opacity-[0.2]"
             style={{
               backgroundImage:
-                "repeating-linear-gradient(110deg, rgba(248,250,252,0.09) 0, rgba(248,250,252,0.09) 1px, transparent 1px, transparent 15px)",
+                "repeating-linear-gradient(110deg, rgba(248,250,252,0.06) 0, rgba(248,250,252,0.06) 1px, transparent 1px, transparent 15px)",
             }}
           />
         ) : null}
 
         <div
-          className={`relative grid items-center gap-8 ${isInline ? "md:grid-cols-[1fr_260px]" : "lg:grid-cols-[minmax(0,1fr)_minmax(320px,410px)]"} lg:gap-10`}
+          className={`relative grid items-center gap-8 ${isInline ? "md:grid-cols-[1fr_260px] md:gap-8" : "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,400px)] lg:gap-10 xl:gap-12"}`}
         >
           <div className={`text-center ${isInline ? "md:text-left" : "lg:text-left"}`}>
-            <div className={`mb-3 flex flex-wrap justify-center gap-2 ${isInline ? "md:justify-start" : "lg:justify-start"}`}>
-              <span className="rounded-full border border-amber-200/40 bg-amber-200/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
-                Season 01 Live
-              </span>
-              <span className="rounded-full border border-sky-300/35 bg-sky-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-sky-100">
-                Battle Royale Lobby
-              </span>
-            </div>
-
-            <p className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-yellow-100/90 sm:text-[11px] sm:tracking-[0.28em]">
-              Drop in. Draft fast. Outplay everyone.
-            </p>
             <h2
               id="create-hero-heading"
-              className={`font-black leading-[1.02] tracking-tight text-white ${isInline ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl lg:text-5xl"}`}
+              className={`max-w-xl font-black leading-[1.08] tracking-tight text-white ${isInline ? "mx-auto text-2xl sm:text-3xl md:mx-0" : "mx-auto text-3xl sm:text-4xl lg:mx-0 lg:text-[2.35rem] lg:leading-[1.06]"}`}
             >
-              Forge your repo deck for
-              <span className="block text-yellow-300">Pokemon Battle Royale</span>
+              Turn repos into{" "}
+              <span className="text-yellow-300">battle cards</span>
             </h2>
-            <p className={`mt-3 text-pretty ${isInline ? "text-sm text-slate-300" : "text-base text-slate-300 sm:text-lg"}`}>
-              Convert real GitHub repos into card fighters, queue for random battles, and climb the arena leaderboard one win at a time.
-            </p>
-
-            <div className={`mt-4 flex flex-wrap justify-center gap-2 ${isInline ? "md:justify-start" : "lg:justify-start"}`}>
-              {[
-                "Stars -> HP",
-                "Commits -> Power",
-                "One tap matchmaking",
-              ].map((chip) => (
-                <span
-                  key={chip}
-                  className="rounded-full border border-white/20 bg-black/30 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-200 sm:text-[11px]"
-                >
-                  {chip}
-                </span>
-              ))}
-            </div>
 
             {!isInline ? (
-              <div className="mt-6 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+              <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-2.5">
                 <div className="rounded-xl border border-amber-200/20 bg-black/35 px-3 py-2.5 text-left">
-                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Queue</p>
-                  <p className="mt-1 text-xl font-black text-amber-200">99 Players</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Fighters</p>
+                  <p className="mt-1 text-xl font-black text-amber-200 tabular-nums">{playersLabel}</p>
                 </div>
                 <div className="rounded-xl border border-sky-200/20 bg-black/35 px-3 py-2.5 text-left">
                   <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Cards Forged</p>
-                  <p className="mt-1 text-xl font-black text-sky-200">12,840</p>
+                  <p className="mt-1 text-xl font-black text-sky-200 tabular-nums">{cardsLabel}</p>
                 </div>
                 <div className="rounded-xl border border-emerald-200/20 bg-black/35 px-3 py-2.5 text-left">
                   <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Best Win Streak</p>
-                  <p className="mt-1 text-xl font-black text-emerald-200">14 Wins</p>
+                  <p className="mt-1 text-xl font-black text-emerald-200 tabular-nums">{streakLabel}</p>
                 </div>
               </div>
             ) : null}
 
-            <div className={`mt-7 flex flex-col gap-3 sm:flex-row ${isInline ? "md:justify-start" : "lg:justify-start"}`}>
+            <div className={`mt-5 flex flex-col gap-3 sm:flex-row ${isInline ? "md:justify-start" : "lg:justify-start"}`}>
               {isSignedIn ? (
                 <button
                   type="button"
@@ -140,22 +162,20 @@ export default function CreateLandingHero({
                 <button
                   type="button"
                   onClick={onSignIn}
-                  className="min-h-14 w-full rounded-2xl border border-white/25 bg-white px-6 py-4 text-base font-black text-slate-900 shadow-lg transition-all hover:bg-slate-100 active:scale-[0.98] sm:min-h-0 sm:w-auto sm:px-10 sm:text-lg"
+                  className="min-h-12 w-full rounded-2xl border border-white/25 bg-white px-6 py-3.5 text-base font-black text-slate-900 shadow-lg transition-all hover:bg-slate-100 active:scale-[0.98] sm:min-h-0 sm:w-auto sm:px-8 sm:text-base"
                 >
-                  Sign in with GitHub to drop in
+                  Sign in with GitHub
                 </button>
               )}
             </div>
 
             {isSignedIn && !isInline ? (
-              <p className="mt-3 text-center text-xs text-slate-400 lg:text-left">
-                Deck builder synced with <span className="font-bold text-amber-100">{usernameLabel}</span>. One tap loads your public repos.
-              </p>
+              <p className="mt-2 text-center text-[11px] text-slate-500 lg:text-left">{usernameLabel}</p>
             ) : null}
           </div>
 
           <div
-            className={`relative mx-auto flex justify-center ${isInline ? "max-w-[260px]" : "w-full max-w-[360px] lg:mx-0 lg:justify-end"}`}
+            className={`relative mx-auto flex justify-center ${isInline ? "max-w-[260px]" : "w-full max-w-[min(100%,360px)] lg:mx-0 lg:justify-end"}`}
           >
             <div className="relative">
               {!isInline ? (
@@ -166,35 +186,13 @@ export default function CreateLandingHero({
               />
               <div className="animate-hero-float relative mx-auto w-max max-w-full">
                 <div className={isInline ? "scale-[0.8] sm:scale-[0.88]" : "scale-[0.88] sm:scale-95 lg:scale-100"}>
-                  <PokemonCardComponent card={DEMO_PREVIEW_CARD} />
+                  <PokemonCardComponent card={DEMO_PREVIEW_CARD} variant="landing" />
                 </div>
               </div>
-              {!isInline ? (
-                <>
-                  <div className="absolute -left-6 top-5 rounded-full border border-red-300/35 bg-red-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-red-100">
-                    Final Circle
-                  </div>
-                  <div className="absolute -right-6 bottom-16 rounded-full border border-cyan-200/35 bg-cyan-200/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
-                    Ranked Match
-                  </div>
-                </>
-              ) : null}
-              {!isInline ? (
-                <p className="mt-3 text-center text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 lg:text-right">
-                  Preview champion card - yours updates from real repo stats
-                </p>
-              ) : null}
             </div>
           </div>
         </div>
 
-        {!isInline ? (
-          <div className="relative mt-6 overflow-hidden rounded-xl border border-white/10 bg-black/35 px-3 py-2.5">
-            <div className="animate-[pulse_4s_ease-in-out_infinite] text-[10px] font-bold uppercase tracking-[0.16em] text-slate-300 sm:text-[11px]">
-              Live feed: @octo-dev just knocked out @merge-master in 7 turns. Queue closes when your deck is ready.
-            </div>
-          </div>
-        ) : null}
       </div>
     </section>
   );

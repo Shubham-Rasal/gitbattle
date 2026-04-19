@@ -20,49 +20,25 @@ function StatBar({ label, value, max = 255, color }: { label: string; value: num
   );
 }
 
-type RarityVisual = {
-  name: string;
-  glow: string;
-  scan: string;
-  badge: string;
-};
+type RarityVisual = { glow: string };
 
 const RARITY_VISUALS: Record<string, RarityVisual> = {
-  common: {
-    name: "Standard",
-    glow: "shadow-black/70",
-    scan: "before:hidden",
-    badge: "from-white/30 to-white/5",
-  },
-  uncommon: {
-    name: "Uncommon",
-    glow: "shadow-[#22c55e]/25",
-    scan: "before:opacity-20",
-    badge: "from-emerald-300/30 to-cyan-200/10",
-  },
-  rare: {
-    name: "Rare",
-    glow: "shadow-[#38bdf8]/35",
-    scan: "before:opacity-30",
-    badge: "from-sky-300/35 to-sky-500/10",
-  },
-  holo: {
-    name: "Holo",
-    glow: "shadow-[#d8b4fe]/45",
-    scan: "before:opacity-45",
-    badge: "from-fuchsia-200/45 to-blue-200/15",
-  },
-  legendary: {
-    name: "Legendary",
-    glow: "shadow-[#fef08a]/55",
-    scan: "before:opacity-60",
-    badge: "from-amber-200/60 to-yellow-300/20",
-  },
+  common: { glow: "shadow-black/70" },
+  uncommon: { glow: "shadow-[#22c55e]/25" },
+  rare: { glow: "shadow-[#38bdf8]/35" },
+  holo: { glow: "shadow-[#d8b4fe]/45" },
+  legendary: { glow: "shadow-[#fef08a]/55" },
 };
 
 type HeroVars = { dx: number; dy: number; s: number; tw: number };
 
-export default function PokemonCardComponent({ card }: { card: PokemonCard }) {
+export default function PokemonCardComponent({
+  card,
+  variant = "default",
+}: {
+  card: PokemonCard;
+  variant?: "default" | "landing";
+}) {
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [isHovering, setIsHovering] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -272,27 +248,6 @@ export default function PokemonCardComponent({ card }: { card: PokemonCard }) {
                 alt={card.repoName}
                 className="relative z-0 w-full h-full object-cover opacity-80 scale-105"
               />
-              <div className="absolute top-2 left-2 z-10 rounded-full border border-white/35 px-2 py-0.5 bg-black/45 backdrop-blur-sm">
-                <span className="text-[9px] font-black uppercase tracking-[0.18em] text-white/80">
-                  {rarityVisual.name}
-                </span>
-              </div>
-              <div className="absolute top-2 right-2 z-10 flex gap-1">
-                <span className={`text-white text-[9px] font-black px-2 py-0.5 rounded-full bg-gradient-to-r ${rarityVisual.badge} uppercase tracking-[0.18em] shadow`}> 
-                  {card.rarity}
-                </span>
-                <span className={`${typeColors.badge} text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide`}>
-                  {card.type}
-                </span>
-              </div>
-              <div className="absolute bottom-2 left-2 z-20 flex gap-1">
-                <span className="bg-black/65 text-white text-[8px] font-black px-2 py-0.5 rounded-full border border-white/20 uppercase tracking-[0.14em]">
-                  {card.language}
-                </span>
-              </div>
-              <div className="absolute bottom-2 right-2 z-20 text-xs tracking-tight text-white/80 bg-black/65 px-2 py-0.5 rounded-full border border-white/20">
-                {card.rarity === "legendary" ? "★★★" : card.rarity === "holo" ? "★★" : card.rarity === "rare" ? "★" : ""}
-              </div>
             </div>
 
             {/* === DESCRIPTION === */}
@@ -350,11 +305,13 @@ export default function PokemonCardComponent({ card }: { card: PokemonCard }) {
             </div>
 
             {/* === FLAVOR TEXT === */}
-            <div className="mx-2 mt-2 mb-1">
-              <p className="text-[8px] text-white/65 italic leading-tight px-1 border-l-2 border-white/30">
-                {card.flavorText}
-              </p>
-            </div>
+            {variant !== "landing" ? (
+              <div className="mx-2 mt-2 mb-1">
+                <p className="text-[8px] text-white/65 italic leading-tight px-1 border-l-2 border-white/30">
+                  {card.flavorText}
+                </p>
+              </div>
+            ) : null}
 
             {/* === FOOTER === */}
             <div className="flex items-center justify-between px-2 pb-1 text-[7px] text-white/65">

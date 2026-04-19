@@ -73,17 +73,31 @@ async function fetchRepoDetails(repo: Record<string, unknown>): Promise<RepoStat
 }
 
 export async function fetchTopRepos(username: string, limit = 3): Promise<RepoStats[]> {
-  // Fetch repos sorted by stars, take top 3
+  // Fetch repos sorted by recency (most recently pushed first)
   const repos = await githubFetch(
-    `${GITHUB_API}/users/${username}/repos?per_page=${Math.min(limit * 4, 100)}&sort=stars&direction=desc`,
+    `${GITHUB_API}/users/${username}/repos?per_page=${Math.min(limit * 4, 100)}&sort=pushed&direction=desc`,
   );
 
   if (!Array.isArray(repos) || repos.length === 0) {
     throw new Error(`No public repos found for user "${username}"`);
   }
 
-  // Take top repos by stars
-  const selected = repos.slice(0, limit);
+  // Sort by recency first, then stars as a tiebreaker.
+  // Recency score: repos updated within a week score highest, decaying over time.
+  const now = Date.now();
+  const sorted = [...repos].sort((a, b) => {
+    const msA = now - new Date(a.pushed_at as string).getTime();
+    const msB = now - new Date(b.pushed_at as string).getTime();
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    // Bucket into recency tiers (0 = within a week, 1 = within a month, 2 = older)
+    const tierA = msA < weekMs ? 0 : msA < 4 * weekMs ? 1 : 2;
+    const tierB = msB < weekMs ? 0 : msB < 4 * weekMs ? 1 : 2;
+    if (tierA !== tierB) return tierA - tierB;
+    // Within the same tier, sort by stars descending
+    return (b.stargazers_count as number) - (a.stargazers_count as number);
+  });
+
+  const selected = sorted.slice(0, limit);
 
   // Fetch details for each in parallel
   const detailed = await Promise.all(selected.map(fetchRepoDetails));

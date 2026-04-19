@@ -31,6 +31,7 @@ export async function startBattle(
   userId: string,
   attackerDeckId: string,
   githubUsername: string,
+  vsSelf = false,
 ): Promise<BattleOutcome> {
   // 1. Load attacker deck & validate ownership
   const attackerDeck = await getDeckById(supabase, attackerDeckId);
@@ -38,10 +39,15 @@ export async function startBattle(
     throw new Error("Deck not found or not owned by you");
   }
 
-  // 2. Pick random opponent
-  const defenderDeck = await pickRandomOpponentDeck(supabase, userId);
-  if (!defenderDeck) {
-    throw new Error("No opponent decks available. You need other players to create decks first!");
+  // 2. Pick opponent — either the same deck (self-battle) or a random public deck
+  let defenderDeck: Awaited<ReturnType<typeof pickRandomOpponentDeck>>;
+  if (vsSelf) {
+    defenderDeck = attackerDeck;
+  } else {
+    defenderDeck = await pickRandomOpponentDeck(supabase, userId);
+    if (!defenderDeck) {
+      throw new Error("No opponent decks available. You need other players to create decks first!");
+    }
   }
 
   // 3. Run engine

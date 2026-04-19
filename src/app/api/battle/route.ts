@@ -15,6 +15,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       deckId: string;
       githubUsername: string;
+      vsSelf?: boolean;
     };
 
     if (!body.deckId) {
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
       user.id,
       body.deckId,
       body.githubUsername || "unknown",
+      body.vsSelf ?? false,
     );
 
     return Response.json(outcome, { status: 201 });

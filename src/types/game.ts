@@ -110,3 +110,10 @@ export interface LeaderboardEntry {
   winRate: number;
   lastPlayed: string | null;
 }
+
+/** Public landing-page aggregates from `/api/stats`. */
+export interface PublicArenaStats {
+  playerCount: number;
+  cardsForged: number | null;
+  bestWinStreak: number;
+}
